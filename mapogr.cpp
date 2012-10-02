@@ -2814,6 +2814,14 @@ static int msOGRLayerGetAutoStyle(mapObj *map, layerObj *layer, classObj *c,
     return(MS_FAILURE);
   }
 
+  const char* stylestring = NULL;
+  if (psInfo->hLastFeature) {
+    stylestring = OGR_F_GetStyleString(psInfo->hLastFeature);
+    if (stylestring && c->stylestring && EQUAL(c->stylestring, stylestring)) {
+        return (MS_SUCCESS); /* already configured */
+    }
+  }
+
   /* ------------------------------------------------------------------
    * Reset style info in the class to defaults
    * the only members we don't touch are name, expression, and join/query stuff
@@ -2836,6 +2844,13 @@ static int msOGRLayerGetAutoStyle(mapObj *map, layerObj *layer, classObj *c,
   }
 
   RELEASE_OGR_LOCK;
+
+  msFree(c->stylestring);
+  if (stylestring)
+    c->stylestring = msStrdup(stylestring);
+  else
+    c->stylestring = NULL;
+
   return nRetVal;
 #else
   /* ------------------------------------------------------------------
@@ -2865,6 +2880,8 @@ int msOGRUpdateStyleFromString(mapObj *map, layerObj *layer, classObj *c,
                                const char *stylestring)
 {
 #ifdef USE_OGR
+  if (stylestring && c->stylestring && EQUAL(c->stylestring, stylestring))
+    return (MS_SUCCESS); /* already configured */
   /* ------------------------------------------------------------------
    * Reset style info in the class to defaults
    * the only members we don't touch are name, expression, and join/query stuff
@@ -2887,6 +2904,15 @@ int msOGRUpdateStyleFromString(mapObj *map, layerObj *layer, classObj *c,
   OGR_SM_Destroy(hStyleMgr);
 
   RELEASE_OGR_LOCK;
+
+  if (nRetVal == MS_SUCCESS) {
+      /* save style string */
+    msFree(c->stylestring);
+    if (stylestring)
+      c->stylestring = msStrdup(stylestring);
+    else
+      c->stylestring = NULL;
+  }
   return nRetVal;
 #else
   /* ------------------------------------------------------------------

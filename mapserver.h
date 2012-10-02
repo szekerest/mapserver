@@ -1124,6 +1124,7 @@ extern "C" {
 
     char *group;
     labelLeaderObj leader;
+    char *stylestring;
   } classObj;
 
   /************************************************************************/

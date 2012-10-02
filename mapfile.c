@@ -3073,6 +3073,8 @@ int initClass(classObj *class)
 
   initLeader(&(class->leader));
 
+  class->stylestring = NULL;
+
   return(0);
 }
 
@@ -3114,6 +3116,7 @@ int freeClass(classObj *class)
 
   msFree(class->keyimage);
   freeLabelLeader(&(class->leader));
+  msFree(class->stylestring);
 
   return MS_SUCCESS;
 }
