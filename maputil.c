@@ -1904,6 +1904,11 @@ void msCleanup(int signal)
 
   /* Clean up the vtable factory */
   msPluginFreeVirtualTableFactory();
+
+#ifdef _WIN32
+  /* Flushing file buffers on process termination */
+  fflush(NULL);
+#endif
 }
 
 /************************************************************************/
