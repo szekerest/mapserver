@@ -2818,6 +2818,7 @@ static int msOGRLayerGetAutoStyle(mapObj *map, layerObj *layer, classObj *c,
   if (psInfo->hLastFeature) {
     stylestring = OGR_F_GetStyleString(psInfo->hLastFeature);
     if (stylestring && c->stylestring && EQUAL(c->stylestring, stylestring)) {
+        RELEASE_OGR_LOCK;
         return (MS_SUCCESS); /* already configured */
     }
   }
