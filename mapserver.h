@@ -32,8 +32,9 @@
 /*
 ** MapServer version - to be updated for every release
 */
-#define MS_VERSION "6.3-dev"
-
+<<<<<<< .mine#define MS_VERSION "6.3-dev"
+=======#define MS_VERSION "6.2.0"
+>>>>>>> .theirs
 #define MS_VERSION_MAJOR    6
 #define MS_VERSION_MINOR    3
 #define MS_VERSION_REV      0
