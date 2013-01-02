@@ -2275,6 +2275,13 @@ int msDumpLayer(mapObj *map, layerObj *lp, int nVersion, const char *script_url_
                       "xlink:type=\"simple\" xlink:href=\"%s\"/>\n        ",
                       MS_FALSE, MS_FALSE, MS_FALSE, MS_TRUE, MS_TRUE,
                       NULL, NULL, NULL, NULL, NULL, "        ");
+  
+  /* print Min/Max ScaleDenominator */
+  if (nVersion <  OWS_1_3_0)
+    msWMSPrintScaleHint("        ", lp->minscaledenom, lp->maxscaledenom, map->resolution);
+  else
+    msWMSPrintScaleDenominator("        ", lp->minscaledenom, lp->maxscaledenom);
+
 
   /* The LegendURL reside in a style. The Web Map Context spec already  */
   /* included the support on this in mapserver. However, it is not in the  */
@@ -2550,11 +2557,6 @@ int msDumpLayer(mapObj *map, layerObj *lp, int nVersion, const char *script_url_
   }
 
   msFree(pszMetadataName);
-
-  if (nVersion <  OWS_1_3_0)
-    msWMSPrintScaleHint("        ", lp->minscaledenom, lp->maxscaledenom, map->resolution);
-  else
-    msWMSPrintScaleDenominator("        ", lp->minscaledenom, lp->maxscaledenom);
 
   if ( grouplayer == MS_FALSE )
     msIO_printf("%s    </Layer>\n", indent);
@@ -2912,7 +2914,7 @@ int msWMSGetCapabilities(mapObj *map, int nVersion, cgiRequestObj *req, owsReque
 #endif
                            "<SVG />"
                            , NULL);
-    if (msOWSRequestIsEnabled(map, NULL, "M", "GetCapabilities", MS_FALSE))
+    if (msOWSRequestIsEnabled(map, NULL, "M", "GetCapabilities", MS_TRUE))
       msWMSPrintRequestCap(nVersion, "Capabilities", script_url_encoded, "<WMS_XML />", NULL);
     if (msOWSRequestIsEnabled(map, NULL, "M", "GetFeatureInfo", MS_FALSE))
       msWMSPrintRequestCap(nVersion, "FeatureInfo", script_url_encoded, "<MIME /><GML.1 />", NULL);
@@ -2923,7 +2925,7 @@ int msWMSGetCapabilities(mapObj *map, int nVersion, cgiRequestObj *req, owsReque
     /* WMS 1.1.0 and later */
     /* Note changes to the request names, their ordering, and to the formats */
 
-    if (msOWSRequestIsEnabled(map, NULL, "M", "GetCapabilities", MS_FALSE)) {
+    if (msOWSRequestIsEnabled(map, NULL, "M", "GetCapabilities", MS_TRUE)) {
       if (nVersion >= OWS_1_3_0)
         msWMSPrintRequestCap(nVersion, "GetCapabilities", script_url_encoded,
                              "text/xml",
