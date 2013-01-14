@@ -79,6 +79,7 @@ double msSymbolGetDefaultSize(symbolObj *s)
       size = 1;
       break;
     case(MS_SYMBOL_PIXMAP):
+    case(MS_SYMBOL_PATTERNMAP):
       assert(s->pixmap_buffer != NULL);
       if(s->pixmap_buffer == NULL) return 1; /* FIXME */
       size = (double)s->pixmap_buffer->height;
@@ -186,6 +187,10 @@ int loadSymbol(symbolObj *s, char *symbolpath)
           msSetError(MS_SYMERR, "Symbol of type SVG has no file path specified.", "loadSymbol()");
           return(-1);
         }
+        if((s->type == MS_SYMBOL_PATTERNMAP) && (s->imagepath == NULL)) {
+          msSetError(MS_SYMERR, "Symbol of type PATTERNMAP has no IMAGE specified.", "loadSymbol()");
+          return(-1);
+        }
         if((s->type == MS_SYMBOL_PIXMAP) && (s->full_pixmap_path == NULL)) {
           msSetError(MS_SYMERR, "Symbol of type PIXMAP has no image data.", "loadSymbol()");
           return(-1);
@@ -236,7 +241,10 @@ int loadSymbol(symbolObj *s, char *symbolpath)
           msSetError(MS_TYPEERR, "Parsing error near (%s):(line %d)", "loadSymbol()", msyystring_buffer, msyylineno);
           return(-1);
         }
-        s->full_pixmap_path = msStrdup(msBuildPath(szPath, symbolpath, msyystring_buffer));
+        if (*msyystring_buffer == '|')
+          s->full_pixmap_path = msStrdup("");
+        else
+          s->full_pixmap_path = msStrdup(msBuildPath(szPath, symbolpath, msyystring_buffer));
         /* Set imagepath */
         s->imagepath = msStrdup(msyystring_buffer);
         break;
@@ -275,7 +283,7 @@ int loadSymbol(symbolObj *s, char *symbolpath)
         if(getInteger(&(s->transparentcolor)) == -1) return(-1);
         break;
       case(TYPE):
-        if((s->type = getSymbol(8,MS_SYMBOL_VECTOR,MS_SYMBOL_ELLIPSE,MS_SYMBOL_PIXMAP,MS_SYMBOL_SIMPLE,MS_TRUETYPE,MS_SYMBOL_HATCH,MS_SYMBOL_SVG)) == -1)
+        if((s->type = getSymbol(8,MS_SYMBOL_VECTOR,MS_SYMBOL_ELLIPSE,MS_SYMBOL_PIXMAP,MS_SYMBOL_SIMPLE,MS_TRUETYPE,MS_SYMBOL_HATCH,MS_SYMBOL_SVG,MS_SYMBOL_PATTERNMAP)) == -1)
           return(-1);
         if(s->type == MS_TRUETYPE) /* TrueType keyword is valid several place in map files and symbol files, this simplifies the lexer */
           s->type = MS_SYMBOL_TRUETYPE;
@@ -300,6 +308,11 @@ void writeSymbol(symbolObj *s, FILE *stream)
       break;
     case(MS_SYMBOL_PIXMAP):
       fprintf(stream, "    TYPE PIXMAP\n");
+      if(s->imagepath != NULL) fprintf(stream, "    IMAGE \"%s\"\n", s->imagepath);
+      fprintf(stream, "    TRANSPARENT %d\n", s->transparentcolor);
+      break;
+    case(MS_SYMBOL_PATTERNMAP):
+      fprintf(stream, "    TYPE PATTERNMAP\n");
       if(s->imagepath != NULL) fprintf(stream, "    IMAGE \"%s\"\n", s->imagepath);
       fprintf(stream, "    TRANSPARENT %d\n", s->transparentcolor);
       break;
@@ -652,6 +665,7 @@ int msGetMarkerSize(symbolSetObj *symbolset, styleObj *style, double *width, dou
       break;
 
     case(MS_SYMBOL_PIXMAP):
+    case(MS_SYMBOL_PATTERNMAP):
       if(size == 1) {
         *width = MS_MAX(*width, symbol->pixmap_buffer->width);
         *height = MS_MAX(*height, symbol->pixmap_buffer->height);
@@ -801,7 +815,31 @@ int msPreloadImageSymbol(rendererVTableObj *renderer, symbolObj *symbol)
   } else {
     symbol->pixmap_buffer = (rasterBufferObj*)calloc(1,sizeof(rasterBufferObj));
   }
-  if(MS_SUCCESS != renderer->loadImageFromFile(symbol->full_pixmap_path, symbol->pixmap_buffer)) {
+  if (symbol->imagepath[0] == '|') {
+    /* calculate bitmap size */
+    int rowsize = 0, width = 0, height = 0;
+    char* pattern = symbol->imagepath;
+    rasterBufferObj* rb = symbol->pixmap_buffer;
+    while (*pattern) {
+      if (*pattern == '|') {
+        if (rowsize > width)
+          width = rowsize;
+        ++height;
+        rowsize = 0;
+      }
+      else
+        ++rowsize;
+      ++pattern;
+    }
+    if (rowsize > width)
+      width = rowsize;
+
+    if (MS_SUCCESS != renderer->initializeRasterBuffer( rb, width, height, MS_IMAGEMODE_RGBA )) {
+      msSetError(MS_MISCERR,"renderer failed to create raster buffer","msPreloadImageSymbol()");
+      return MS_FAILURE;
+    }
+  }
+  else if(MS_SUCCESS != renderer->loadImageFromFile(symbol->full_pixmap_path, symbol->pixmap_buffer)) {
     /* Free pixmap_buffer already allocated */
     free(symbol->pixmap_buffer);
     symbol->pixmap_buffer = NULL;

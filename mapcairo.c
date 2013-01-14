@@ -1027,6 +1027,7 @@ int freeSymbolCairo(symbolObj *s)
       cairo_path_destroy(s->renderer_cache);
       break;
     case MS_SYMBOL_PIXMAP:
+    case MS_SYMBOL_PATTERNMAP:
       cairo_surface_destroy(s->renderer_cache);
       break;
     case MS_SYMBOL_SVG: {
@@ -1235,6 +1236,7 @@ int msPopulateRendererVTableCairoRaster( rendererVTableObj *renderer )
   renderer->renderSVGSymbol = &renderSVGSymbolCairo;
   renderer->renderPixmapSymbol = &renderPixmapSymbolCairo;
   renderer->mergeRasterBuffer = &mergeRasterBufferCairo;
+  renderer->initializeRasterBuffer = initializeRasterBufferCairo;
   renderer->getTruetypeTextBBox = &getTruetypeTextBBoxCairo;
   renderer->renderTile = &renderTileCairo;
   renderer->loadImageFromFile = &msLoadMSRasterBufferFromFile;

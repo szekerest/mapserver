@@ -434,6 +434,7 @@ char path[MS_MAXPATHLEN];
 <INITIAL>one-to-one                            { MS_LEXER_RETURN_TOKEN(MS_JOIN_ONE_TO_ONE); }
 <INITIAL>one-to-many                           { MS_LEXER_RETURN_TOKEN(MS_JOIN_ONE_TO_MANY); }
 <INITIAL>oraclespatial                         { MS_LEXER_RETURN_TOKEN(MS_ORACLESPATIAL); }
+<INITIAL>patternmap                            { MS_LEXER_RETURN_TOKEN(MS_SYMBOL_PATTERNMAP); }
 <INITIAL>percentages                           { MS_LEXER_RETURN_TOKEN(MS_PERCENTAGES); }
 <INITIAL>pixmap                                { MS_LEXER_RETURN_TOKEN(MS_SYMBOL_PIXMAP); }
 <INITIAL,URL_STRING>pixels                     { MS_LEXER_RETURN_TOKEN(MS_PIXELS); }

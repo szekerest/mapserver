@@ -1188,6 +1188,7 @@ int msDrawVectorLayer(mapObj *map, layerObj *layer, imageObj *image)
                       pStyle->symbol<map->symbolset.numsymbols &&
                       ( 
                         map->symbolset.symbol[pStyle->symbol]->type == MS_SYMBOL_PIXMAP ||
+                        map->symbolset.symbol[pStyle->symbol]->type == MS_SYMBOL_PATTERNMAP ||
                         map->symbolset.symbol[pStyle->symbol]->type == MS_SYMBOL_SVG
                       )
                     )
@@ -2055,10 +2056,11 @@ int msDrawShape(mapObj *map, layerObj *layer, shapeObj *shape, imageObj *image, 
         return MS_FAILURE;
       }
       symbol = map->symbolset.symbol[style->symbol];
-      if (symbol->type == MS_SYMBOL_PIXMAP) {
+      if (symbol->type == MS_SYMBOL_PIXMAP || symbol->type == MS_SYMBOL_PATTERNMAP) {
         if (MS_SUCCESS != msPreloadImageSymbol(MS_MAP_RENDERER(map), symbol))
           return MS_FAILURE;
-      } else if (symbol->type == MS_SYMBOL_SVG) {
+      }
+      else if (symbol->type == MS_SYMBOL_SVG) {
 #ifdef USE_SVG_CAIRO
         if (MS_SUCCESS != msPreloadSVGSymbol(symbol))
           return MS_FAILURE;

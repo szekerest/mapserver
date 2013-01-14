@@ -75,7 +75,22 @@ void computeSymbolStyle(symbolStyleObj *s, styleObj *src, symbolObj *symbol, dou
   INIT_SYMBOL_STYLE(*s);
   if(symbol->type == MS_SYMBOL_PIXMAP) {
     s->color = s->outlinecolor = NULL;
-  } else if(symbol->filled || symbol->type == MS_SYMBOL_TRUETYPE) {
+  }
+  else if(symbol->type == MS_SYMBOL_PATTERNMAP) {
+    if(MS_VALID_COLOR(src->color))
+      s->color = &src->color;
+    
+    s->outlinecolor = NULL;
+    s->outlinewidth = 0;
+    if(MS_VALID_COLOR(src->backgroundcolor))
+      s->backgroundcolor = &(src->backgroundcolor);
+
+    s->scale = 1;
+    s->gap = 0;
+    s->rotation = 0;
+    return;
+  }
+  else if(symbol->filled || symbol->type == MS_SYMBOL_TRUETYPE) {
     if(MS_VALID_COLOR(src->color))
       s->color = &src->color;
     if(MS_VALID_COLOR(src->outlinecolor))
@@ -183,6 +198,87 @@ tileCacheObj *addTileCache(imageObj *img,
   return(cachep);
 }
 
+void msCreateBitmapSymbol(symbolObj *symbol, symbolStyleObj *s)
+{
+  int i;
+  int len = strlen(symbol->imagepath);
+  rasterBufferObj* rb = symbol->pixmap_buffer;
+
+  if (rb->type == MS_BUFFER_BYTE_RGBA) {
+    unsigned char *r,*g,*b,*a;
+    
+    b = &rb->data.rgba.pixels[0];
+    g = &rb->data.rgba.pixels[1];
+    r = &rb->data.rgba.pixels[2];
+    a = &rb->data.rgba.pixels[3];
+
+    for(i=1; i<len; i++) {
+      switch (symbol->imagepath[i]) {
+        case '1':
+          if (s->color) {
+            *r = s->color->red;
+            *g = s->color->green;
+            *b = s->color->blue;
+            *a = s->color->alpha;
+          }
+          break;
+        case '0':
+          if (symbol->transparent) {
+            *r = 0;
+            *g = 0;
+            *b = 0;
+            *a = 0;
+          }
+          else if (s->backgroundcolor) {
+            *r = s->backgroundcolor->red;
+            *g = s->backgroundcolor->green;
+            *b = s->backgroundcolor->blue;
+            *a = s->backgroundcolor->alpha;
+          }
+          break;
+        case '|':
+          continue;
+      }
+      b+=4;
+      g+=4;
+      r+=4;
+      a+=4;
+    }
+  }
+#ifdef USE_GD
+  else if(rb->type == MS_BUFFER_GD) {
+    int row = 0,col = 0;
+    gdImageColorResolve(rb->data.gd_img, 0, 0, 0);
+    if (s->backgroundcolor) 
+      s->backgroundcolor->pen = gdImageColorResolve(rb->data.gd_img, s->backgroundcolor->red, 
+                                s->backgroundcolor->green, s->backgroundcolor->blue);
+    if (s->color) 
+      s->color->pen = gdImageColorResolve(rb->data.gd_img, s->color->red, s->color->green, s->color->blue); 
+    
+    for(i=1; i<len; i++) {
+      switch (symbol->imagepath[i]) {
+        case '1':
+          if (s->color) {
+            gdImageSetPixel(rb->data.gd_img,col,row,s->color->pen);
+          }
+          break;
+        case '0':
+          if (symbol->transparent)
+            gdImageSetPixel(rb->data.gd_img,col,row,symbol->transparentcolor);
+          else if (s->backgroundcolor)
+            gdImageSetPixel(rb->data.gd_img,col,row,s->backgroundcolor->pen);
+          break;
+        case '|':
+          ++row;
+          col = 0;
+          continue;
+      }
+      ++col;
+    }
+  }
+#endif 
+}
+
 imageObj *getTile(imageObj *img, symbolObj *symbol,  symbolStyleObj *s, int width, int height,
                   int seamlessmode)
 {
@@ -207,6 +303,13 @@ imageObj *getTile(imageObj *img, symbolObj *symbol,  symbolStyleObj *s, int widt
           if(msPreloadImageSymbol(renderer,symbol) != MS_SUCCESS) {
             return NULL; /* failed to load image, renderer should have set the error message */
           }
+          renderer->renderPixmapSymbol(tileimg, p_x, p_y, symbol, s);
+          break;
+        case (MS_SYMBOL_PATTERNMAP):
+          if(msPreloadImageSymbol(renderer,symbol) != MS_SUCCESS) {
+            return NULL; /* failed to load image, renderer should have set the error message */
+          }
+          msCreateBitmapSymbol(symbol, s);
           renderer->renderPixmapSymbol(tileimg, p_x, p_y, symbol, s);
           break;
         case (MS_SYMBOL_ELLIPSE):
@@ -380,6 +483,7 @@ int msImagePolylineMarkers(imageObj *image, shapeObj *p, symbolObj *symbol,
           
         switch (symbol->type) {
           case MS_SYMBOL_PIXMAP:
+          case MS_SYMBOL_PATTERNMAP:
             ret = renderer->renderPixmapSymbol(image, point.x, point.y, symbol, style);
             break;
           case MS_SYMBOL_ELLIPSE:
@@ -438,6 +542,7 @@ int msImagePolylineMarkers(imageObj *image, shapeObj *p, symbolObj *symbol,
           point.y = p->line[i].point[j - 1].y + offset * ry;
           switch (symbol->type) {
             case MS_SYMBOL_PIXMAP:
+            case MS_SYMBOL_PATTERNMAP:
               ret = renderer->renderPixmapSymbol(image, point.x, point.y, symbol, style);
               break;
             case MS_SYMBOL_ELLIPSE:
@@ -531,7 +636,8 @@ int msDrawLineSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p,
             }
           }
           break;
-          case (MS_SYMBOL_PIXMAP): {
+          case (MS_SYMBOL_PIXMAP):
+          case (MS_SYMBOL_PATTERNMAP):{
             if(!symbol->pixmap_buffer) {
               if(MS_SUCCESS != msPreloadImageSymbol(renderer,symbol))
                 return MS_FAILURE;
@@ -689,6 +795,7 @@ int msDrawShadeSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p, sty
 
         switch(symbol->type) {
           case MS_SYMBOL_PIXMAP:
+          case MS_SYMBOL_PATTERNMAP:
             if(MS_SUCCESS != msPreloadImageSymbol(renderer,symbol)) {
               ret = MS_FAILURE;
               goto cleanup;
@@ -811,7 +918,8 @@ int msDrawMarkerSymbol(symbolSetObj *symbolset,imageObj *image, pointObj *p, sty
           }
         }
         break;
-        case (MS_SYMBOL_PIXMAP): {
+        case (MS_SYMBOL_PIXMAP): 
+        case (MS_SYMBOL_PATTERNMAP): {
           if (!symbol->pixmap_buffer) {
             if (MS_SUCCESS != msPreloadImageSymbol(renderer, symbol))
               return MS_FAILURE;
@@ -898,7 +1006,8 @@ int msDrawMarkerSymbol(symbolSetObj *symbolset,imageObj *image, pointObj *p, sty
 
         }
         break;
-        case (MS_SYMBOL_PIXMAP): {
+        case (MS_SYMBOL_PIXMAP): 
+        case (MS_SYMBOL_PATTERNMAP): {
           assert(symbol->pixmap_buffer);
           ret = renderer->renderPixmapSymbol(image,p_x,p_y,symbol,&s);
         }
