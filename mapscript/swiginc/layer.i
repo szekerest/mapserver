@@ -121,6 +121,12 @@
     {
         return msUpdateLayerFromString(self, snippet, MS_FALSE);
     }
+    
+    %newobject writeToString;
+    char* writeToString()
+    {
+        return msWriteLayerToString(self);
+    }
 
 #ifdef SWIGCSHARP   
 %apply SWIGTYPE *SETREFERENCE {classObj *classobj};

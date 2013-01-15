@@ -1912,6 +1912,8 @@ extern "C" {
   MS_DLL_EXPORT int msUpdateClassFromString(classObj *_class, char *string, int url_string);
   MS_DLL_EXPORT int msUpdateLayerFromString(layerObj *layer, char *string, int url_string);
   MS_DLL_EXPORT int msUpdateMapFromURL(mapObj *map, char *variable, char *string);
+  MS_DLL_EXPORT char *msWriteLayerToString(layerObj *layer);
+  MS_DLL_EXPORT char *msWriteMapToString(mapObj *map);
   MS_DLL_EXPORT int msEvalRegex(char *e, char *s);
 #ifdef USE_MSFREE
   MS_DLL_EXPORT void msFree(void *p);
