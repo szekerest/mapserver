@@ -288,7 +288,6 @@ mapObj *msCGILoadMap(mapservObj *mapserv)
   return map;
 }
 
-
 /*
 ** Set operation mode. First look in MS_MODE env. var. as a
 ** default value that can be overridden by the mode=... CGI param.
@@ -322,10 +321,20 @@ int msCGISetMode(mapservObj *mapserv)
     }
   }
 
+  if (mapserv->Mode >= 0)
+  {
+    int disabled = MS_FALSE;
+    const char* enable_modes = msLookupHashTable(&mapserv->map->web.metadata, "ms_enable_modes");
+
+    if (!msOWSParseRequestMetadata(enable_modes, mode, &disabled) && disabled) {
+      /* the current mode is disabled */
+      msSetError(MS_WEBERR, "The specified mode '%s' is not supported by the current map configuration", "msCGISetMode()", mode);
+      return MS_FAILURE;
+    }
+  }
+
   return MS_SUCCESS;
 }
-
-
 
 
 /*
