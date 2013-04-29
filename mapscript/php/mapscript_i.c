@@ -901,7 +901,7 @@ labelObj *labelObj_clone(labelObj *label)
 
 int labelObj_updateFromString(labelObj *self, char *snippet)
 {
-  return msUpdateLabelFromString(self, snippet);
+  return msUpdateLabelFromString(self, snippet, MS_FALSE);
 }
 
 char *labelObj_convertToString(labelObj *self)
@@ -922,6 +922,33 @@ int labelObj_moveStyleDown(labelObj *self, int index)
 int labelObj_deleteStyle(labelObj *self, int index)
 {
   return msDeleteLabelStyle(self, index);
+}
+
+int labelObj_setExpression(labelObj *self, char *string)
+{
+  if (!string || strlen(string) == 0) {
+    freeExpression(&self->expression);
+    return MS_SUCCESS;
+  } else return msLoadExpressionString(&self->expression, string);
+}
+
+char *labelObj_getExpressionString(labelObj *self)
+{
+  return msGetExpressionString(&(self->expression));
+}
+
+int labelObj_setText(labelObj *self, layerObj *layer, char *string)
+{
+  if (!string || strlen(string) == 0) {
+    freeExpression(&self->text);
+    return MS_SUCCESS;
+  }
+  return msLoadExpressionString(&self->text, string);
+}
+
+char *labelObj_getTextString(labelObj *self)
+{
+  return msGetExpressionString(&(self->text));
 }
 
 /**********************************************************************
@@ -1078,7 +1105,9 @@ char *classObj_getTextString(classObj *self)
 
 int classObj_drawLegendIcon(classObj *self, mapObj *map, layerObj *layer, int width, int height, imageObj *dstImg, int dstX, int dstY)
 {
+#ifdef USE_GD
   msClearLayerPenValues(layer); // just in case the mapfile has already been processed
+#endif
   return msDrawLegendIcon(map, layer, self, width, height, dstImg, dstX, dstY);
 }
 
@@ -1523,8 +1552,10 @@ int rectObj_draw(rectObj *self, mapObj *map, layerObj *layer,
   msRectToPolygon(*self, &shape);
   shape.classindex = classindex;
 
-  if (text)
+  if(text && layer->class[classindex]->numlabels > 0) {
     shape.text = strdup(text);
+    msShapeGetAnnotation(layer,&shape);
+  }
   
   msDrawShape(map, layer, &shape, img, -1, MS_DRAWMODE_FEATURES|MS_DRAWMODE_LABELS);
 
