@@ -139,17 +139,18 @@ int msWCSException(mapObj *map, const char *code, const char *locator,
 {
   char *pszEncodedVal = NULL;
   const char *encoding;
+  char version_string[OWS_VERSION_MAXLEN];
 
   if( version == NULL )
     version = "1.0.0";
 
 #if defined(USE_LIBXML2)
   if( msOWSParseVersionString(version) >= OWS_2_0_0 )
-    return msWCSException20( map, code, locator, version );
+    return msWCSException20( map, code, locator, msOWSGetVersionString(msOWSParseVersionString(version), version_string) );
 #endif
 
   if( msOWSParseVersionString(version) >= OWS_1_1_0 )
-    return msWCSException11( map, code, locator, version );
+    return msWCSException11( map, code, locator, msOWSGetVersionString(msOWSParseVersionString(version), version_string) );
 
   encoding = msOWSLookupMetadata(&(map->web.metadata), "CO", "encoding");
   if (encoding)
@@ -2161,6 +2162,13 @@ int msWCSDispatch(mapObj *map, cgiRequestObj *request, owsRequestObj *ows_reques
         msWCSFreeParamsObj20(params);
         return msWCSException(map, "InvalidParameterValue",
                               "request", "2.0.1");
+      }
+      else if (status == MS_DONE) {
+        /* MS_DONE means, that the exception has already been written to the IO 
+          buffer. 
+        */
+        msWCSFreeParamsObj20(params);
+        return MS_FAILURE;
       }
     }
 

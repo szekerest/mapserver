@@ -650,7 +650,17 @@ static void writeColor(FILE *stream, int indent, const char *name, colorObj *def
 #if ALPHACOLOR_ENABLED
   msIO_fprintf(stream, "%s %d %d %d\n", name, color->red, color->green, color->blue, color->alpha);
 #else
-  msIO_fprintf(stream, "%s %d %d %d\n", name, color->red, color->green, color->blue);
+  if(color->alpha != 255) {
+    char buffer[9];
+    sprintf(buffer, "%02x", color->red);
+    sprintf(buffer+2, "%02x", color->green);
+    sprintf(buffer+4, "%02x", color->blue);
+    sprintf(buffer+6, "%02x", color->alpha);
+    *(buffer+8) = 0;
+    msIO_fprintf(stream, "%s \"#%s\"\n", name, buffer);
+  } else {
+    msIO_fprintf(stream, "%s %d %d %d\n", name, color->red, color->green, color->blue);
+  }
 #endif
 }
 
@@ -2129,7 +2139,7 @@ static void writeLabel(FILE *stream, int indent, labelObj *label)
     else writeNumber(stream, indent, "SIZE", -1, label->size);
   }
 
-  writeKeyword(stream, indent, "ALIGN", label->align, MS_ALIGN_CENTER, "CENTER", MS_ALIGN_RIGHT, "RIGHT");
+  writeKeyword(stream, indent, "ALIGN", label->align, 2, MS_ALIGN_CENTER, "CENTER", MS_ALIGN_RIGHT, "RIGHT");
   writeNumber(stream, indent, "BUFFER", 0, label->buffer);
 
   if(label->numbindings > 0 && label->bindings[MS_LABEL_BINDING_COLOR].item)
