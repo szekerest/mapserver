@@ -435,3 +435,49 @@ DllExport void SWIGSTDCALL SWIGRegisterByteArrayCallback_$module(SWIG_CSharpByte
     $csclassname ret = (cPtr == IntPtr.Zero) ? null : new $csclassname(cPtr, $owner, ThisOwn_false());$excode
     return ret;
   }
+
+/* 
+ * Helper to marshal utf8 strings.  
+ */ 
+ 
+%pragma(csharp) modulecode=%{ 
+  internal static byte[] StringToUtf8Bytes(string str) 
+  { 
+    if (str == null) 
+      return null; 
+     
+    int bytecount = System.Text.Encoding.UTF8.GetMaxByteCount(str.Length); 
+    byte[] bytes = new byte[bytecount + 1]; 
+    System.Text.Encoding.UTF8.GetBytes(str, 0, str.Length, bytes, 0); 
+    return bytes; 
+  } 
+   
+  internal static string Utf8BytesToString(IntPtr pNativeData) 
+  { 
+    if (pNativeData == IntPtr.Zero) 
+        return null; 
+         
+    int length = Marshal.PtrToStringAnsi(pNativeData).Length; 
+    byte[] strbuf = new byte[length];   
+    Marshal.Copy(pNativeData, strbuf, 0, length);  
+    return System.Text.Encoding.UTF8.GetString(strbuf); 
+  } 
+%} 
+
+%typemap(csin) (char *data)  "$module.StringToUtf8Bytes($csinput)"
+%typemap(imtype, out="IntPtr") (char *data) "byte[]"
+%typemap(out) (char *data) %{ $result = $1; %} 
+%typemap(csout, excode=SWIGEXCODE) (char *data) { 
+        IntPtr cPtr = $imcall; 
+        string ret = $module.Utf8BytesToString(cPtr); 
+        $excode 
+        return ret; 
+}
+%typemap(csvarout, excode=SWIGEXCODE2) (char *data) %{
+    get {
+	    IntPtr cPtr = $imcall; 
+        string ret = $module.Utf8BytesToString(cPtr); 
+        $excode 
+        return ret; 
+    } 
+%}
