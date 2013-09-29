@@ -69,17 +69,18 @@
      COMMIFY = 285,
      LENGTH = 286,
      AREA = 287,
-     INITCAP = 288,
-     LOWER = 289,
-     UPPER = 290,
-     TOSTRING = 291,
-     SMOOTHSIA = 292,
-     GENERALIZE = 293,
-     SIMPLIFYPT = 294,
-     SIMPLIFY = 295,
-     DIFFERENCE = 296,
-     YYBUFFER = 297,
-     NEG = 298
+     FIRSTCAP = 288,
+     INITCAP = 289,
+     LOWER = 290,
+     UPPER = 291,
+     TOSTRING = 292,
+     SMOOTHSIA = 293,
+     GENERALIZE = 294,
+     SIMPLIFYPT = 295,
+     SIMPLIFY = 296,
+     DIFFERENCE = 297,
+     YYBUFFER = 298,
+     NEG = 299
    };
 #endif
 /* Tokens.  */
@@ -113,17 +114,18 @@
 #define COMMIFY 285
 #define LENGTH 286
 #define AREA 287
-#define INITCAP 288
-#define LOWER 289
-#define UPPER 290
-#define TOSTRING 291
-#define SMOOTHSIA 292
-#define GENERALIZE 293
-#define SIMPLIFYPT 294
-#define SIMPLIFY 295
-#define DIFFERENCE 296
-#define YYBUFFER 297
-#define NEG 298
+#define FIRSTCAP 288
+#define INITCAP 289
+#define LOWER 290
+#define UPPER 291
+#define TOSTRING 292
+#define SMOOTHSIA 293
+#define GENERALIZE 294
+#define SIMPLIFYPT 295
+#define SIMPLIFY 296
+#define DIFFERENCE 297
+#define YYBUFFER 298
+#define NEG 299
 
 
 
@@ -139,7 +141,7 @@ typedef union YYSTYPE
   shapeObj *shpval;
 }
 /* Line 1489 of yacc.c.  */
-#line 143 "mapparser.h"
+#line 145 "mapparser.h"
 	YYSTYPE;
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
