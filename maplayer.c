@@ -649,8 +649,10 @@ int msLayerWhichItems(layerObj *layer, int get_all, char *metadata)
 
   if(layer->classitem) nt++;
   if(layer->filteritem) nt++;
-  if(layer->styleitem && strcasecmp(layer->styleitem, "AUTO") != 0) nt++;
-
+  if(layer->styleitem &&
+     (strcasecmp(layer->styleitem, "AUTO") != 0) &&
+     (strncasecmp(layer->styleitem, "javascript://", 13) != 0)) nt++;
+     
   if(layer->filter.type == MS_EXPRESSION)
     nt += msCountChars(layer->filter.string, '[');
 
@@ -697,6 +699,10 @@ int msLayerWhichItems(layerObj *layer, int get_all, char *metadata)
       nt += msCountChars(layer->class[i]->text.string, '[');
   }
 
+  /* utfgrid count */
+  if(layer->utfdata.type == MS_EXPRESSION || (layer->utfdata.string && strchr(layer->utfdata.string,'[') != NULL && strchr(layer->utfdata.string,']') != NULL))
+    nt += msCountChars(layer->utfdata.string, '[');
+
   /*
   ** allocate space for the item list (worse case size)
   */
@@ -721,8 +727,11 @@ int msLayerWhichItems(layerObj *layer, int get_all, char *metadata)
     /* layer items */
     if(layer->classitem) layer->classitemindex = string2list(layer->items, &(layer->numitems), layer->classitem);
     if(layer->filteritem) layer->filteritemindex = string2list(layer->items, &(layer->numitems), layer->filteritem);
-    if(layer->styleitem && strcasecmp(layer->styleitem, "AUTO") != 0) layer->styleitemindex = string2list(layer->items, &(layer->numitems), layer->styleitem);
+    if(layer->styleitem && 
+       (strcasecmp(layer->styleitem, "AUTO") != 0) &&
+       (strncasecmp(layer->styleitem, "javascript://",13) != 0)) layer->styleitemindex = string2list(layer->items, &(layer->numitems), layer->styleitem);
     if(layer->labelitem) layer->labelitemindex = string2list(layer->items, &(layer->numitems), layer->labelitem);
+    if(layer->utfitem) layer->utfitemindex = string2list(layer->items, &(layer->numitems), layer->utfitem);
 
     /* layer classes */
     for(i=0; i<layer->numclasses; i++) {
@@ -769,6 +778,11 @@ int msLayerWhichItems(layerObj *layer, int get_all, char *metadata)
     /* cluster expressions */
     if(layer->cluster.group.type == MS_EXPRESSION) msTokenizeExpression(&(layer->cluster.group), layer->items, &(layer->numitems));
     if(layer->cluster.filter.type == MS_EXPRESSION) msTokenizeExpression(&(layer->cluster.filter), layer->items, &(layer->numitems));
+
+    /* utfdata */
+    if(layer->utfdata.type == MS_EXPRESSION || (layer->utfdata.string && strchr(layer->utfdata.string,'[') != NULL && strchr(layer->utfdata.string,']') != NULL)) {
+        msTokenizeExpression(&(layer->utfdata), layer->items, &(layer->numitems));
+    }
   }
 
   if(metadata) {
@@ -859,41 +873,75 @@ int msLayerGetAutoStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* sha
 */
 int msLayerGetFeatureStyle(mapObj *map, layerObj *layer, classObj *c, shapeObj* shape)
 {
-  char* stylestring;
+  char* stylestring = NULL;
   if (layer->styleitem && layer->styleitemindex >=0) {
-    stylestring = shape->values[layer->styleitemindex];
-    /* try to find out the current style format */
-    if (strncasecmp(stylestring,"style",5) == 0) {
-      resetClassStyle(c);
-      c->layer = layer;
-      if (msMaybeAllocateClassStyle(c, 0))
-        return(MS_FAILURE);
+    stylestring = msStrdup(shape->values[layer->styleitemindex]);
+  }
+  else if (strncasecmp(layer->styleitem,"javascript://",13) == 0) {
+#ifdef USE_V8
+    char *filename = layer->styleitem+13;
 
-      msUpdateStyleFromString(c->styles[0], stylestring, MS_FALSE);
-      if(c->styles[0]->symbolname) {
-        if((c->styles[0]->symbol =  msGetSymbolIndex(&(map->symbolset), c->styles[0]->symbolname, MS_TRUE)) == -1) {
-          msSetError(MS_MISCERR, "Undefined symbol \"%s\" in class of layer %s.", "msLayerGetFeatureStyle()", 
-              c->styles[0]->symbolname, layer->name);
-          return MS_FAILURE;
-        }
+    if (!map->v8context) {
+      msV8CreateContext(map);
+      if (!map->v8context)
+      {
+        msSetError(MS_V8ERR, "Unable to create v8 context.", "msLayerGetFeatureStyle()");
+        return MS_FAILURE;
       }
-    } else if (strncasecmp(stylestring,"class",5) == 0) {
-      if (strcasestr(stylestring, " style ") != NULL) {
-        /* reset style if stylestring contains style definitions */
-        resetClassStyle(c);
-        c->layer = layer;
-      }
-      msUpdateClassFromString(c, stylestring, MS_FALSE);
-    } else if (strncasecmp(stylestring,"pen",3) == 0 || strncasecmp(stylestring,"brush",5) == 0 ||
-               strncasecmp(stylestring,"symbol",6) == 0 || strncasecmp(stylestring,"label",5) == 0) {
-      msOGRUpdateStyleFromString(map, layer, c, stylestring);
-    } else {
-      resetClassStyle(c);
     }
 
-    return MS_SUCCESS;
+    if (*filename == '\0') {
+      msSetError(MS_V8ERR, "Invalid javascript filename: \"%s\".", "msLayerGetFeatureStyle()", layer->styleitem);
+      return MS_FAILURE;
+    }
+    
+    stylestring = msV8GetFeatureStyle(map, filename, layer, shape);
+#else
+      msSetError(MS_V8ERR, "V8 Javascript support is not available.", "msLayerGetFeatureStyle()");
+      return MS_FAILURE;
+#endif
   }
-  return MS_FAILURE;
+  else { /* unknown styleitem */
+    return MS_FAILURE;
+  }
+
+  /* try to find out the current style format */
+  if (!stylestring)
+    return MS_FAILURE;
+
+  if (strncasecmp(stylestring,"style",5) == 0) {
+    resetClassStyle(c);
+    c->layer = layer;
+    if (msMaybeAllocateClassStyle(c, 0)) {
+      free(stylestring);
+      return(MS_FAILURE);
+    }
+
+    msUpdateStyleFromString(c->styles[0], stylestring, MS_FALSE);
+    if(c->styles[0]->symbolname) {
+      if((c->styles[0]->symbol =  msGetSymbolIndex(&(map->symbolset), c->styles[0]->symbolname, MS_TRUE)) == -1) {
+        msSetError(MS_MISCERR, "Undefined symbol \"%s\" in class of layer %s.", "msLayerGetFeatureStyle()", 
+                   c->styles[0]->symbolname, layer->name);
+        free(stylestring);
+        return MS_FAILURE;
+      }
+    }
+  } else if (strncasecmp(stylestring,"class",5) == 0) {
+    if (strcasestr(stylestring, " style ") != NULL) {
+      /* reset style if stylestring contains style definitions */
+      resetClassStyle(c);
+      c->layer = layer;
+    }
+    msUpdateClassFromString(c, stylestring, MS_FALSE);
+  } else if (strncasecmp(stylestring,"pen",3) == 0 || strncasecmp(stylestring,"brush",5) == 0 ||
+             strncasecmp(stylestring,"symbol",6) == 0 || strncasecmp(stylestring,"label",5) == 0) {
+    msOGRUpdateStyleFromString(map, layer, c, stylestring);
+  } else {
+    resetClassStyle(c);
+  }
+
+  free(stylestring);
+  return MS_SUCCESS;
 }
 
 

@@ -306,8 +306,7 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass,
     marker.y = dstY + MS_NINT(height / 2.0);
     initTextSymbol(&ts);
     msPopulateTextSymbolForLabelAndString(&ts,theclass->labels[0],msStrdup("Az"),lp->scalefactor*image_draw->resolutionfactor,image_draw->resolutionfactor, duplicate_always);
-    if(theclass->labels[0]->type == MS_TRUETYPE)
-      ts.label->size = height - 1;
+    ts.label->size = height - 1;
     ret = msComputeTextPath(map,&ts);
     if(UNLIKELY(ret == MS_FAILURE)) goto legend_icon_cleanup;
     textstartpt = get_metrics(&marker,MS_CC,ts.textpath,0,0,0,0,NULL);
@@ -492,7 +491,7 @@ int msLegendCalcSize(mapObj *map, int scale_independent, int *size_x, int *size_
     for(j=lp->numclasses-1; j>=0; j--) {
       textSymbolObj ts;
       text = lp->class[j]->title?lp->class[j]->title:lp->class[j]->name; /* point to the right legend text, title takes precedence */
-      if(!text) continue; /* skip it */
+      if(!text || !*text) continue; /* skip it */
 
       /* skip the class if the classgroup is defined */
       if(lp->classgroup && (lp->class[j]->group == NULL || strcasecmp(lp->class[j]->group, lp->classgroup) != 0))
@@ -600,7 +599,7 @@ imageObj *msDrawLegend(mapObj *map, int scale_independent, map_hittest *hittest)
 
     for(j=lp->numclasses-1; j>=0; j--) {
       text = lp->class[j]->title?lp->class[j]->title:lp->class[j]->name; /* point to the right legend text, title takes precedence */
-      if(!text) continue; /* skip it */
+      if(!text || !*text) continue; /* skip it */
 
       /* skip the class if the classgroup is defined */
       if(lp->classgroup && (lp->class[j]->group == NULL || strcasecmp(lp->class[j]->group, lp->classgroup) != 0))

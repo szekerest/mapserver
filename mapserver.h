@@ -134,7 +134,6 @@ typedef ms_uint32 *     ms_bitarray;
 #include "cgiutil.h"
 
 
-
 #include <sys/types.h> /* regular expression support */
 
 /* The regex lib from the system and the regex lib from PHP needs to
@@ -393,6 +392,7 @@ extern "C" {
 #define MS_RENDER_WITH_OGL      104
 #define MS_RENDER_WITH_AGG 105
 #define MS_RENDER_WITH_KML 106
+#define MS_RENDER_WITH_UTFGRID 107
 
 #ifndef SWIG
 
@@ -485,7 +485,11 @@ extern "C" {
   enum MS_POSITIONS_ENUM {MS_UL=101, MS_LR, MS_UR, MS_LL, MS_CR, MS_CL, MS_UC, MS_LC, MS_CC, MS_AUTO, MS_XY}; /* Added MS_FOLLOW for bug #1620 implementation. */
 
   enum MS_LABEL_ANGLEMODE{MS_ANGLEMODE_NONE,MS_ANGLEMODE_AUTO,MS_ANGLEMODE_AUTO2,MS_ANGLEMODE_FOLLOW};
-  enum MS_BITMAP_FONT_SIZES {MS_TINY , MS_SMALL, MS_MEDIUM, MS_LARGE, MS_GIANT};
+#define MS_TINY 5
+#define MS_SMALL 7
+#define MS_MEDIUM 10
+#define MS_LARGE 13
+#define MS_GIANT 16
   enum MS_QUERYMAP_STYLES {MS_NORMAL, MS_HILITE, MS_SELECTED};
   enum MS_CONNECTION_TYPE {MS_INLINE, MS_SHAPEFILE, MS_TILED_SHAPEFILE, MS_SDE, MS_OGR, MS_UNUSED_1, MS_POSTGIS, MS_WMS, MS_ORACLESPATIAL, MS_WFS, MS_GRATICULE, MS_MYSQL, MS_RASTER, MS_PLUGIN, MS_UNION, MS_UVRASTER, MS_CONTOUR };
   enum MS_JOIN_CONNECTION_TYPE {MS_DB_XBASE, MS_DB_CSV, MS_DB_MYSQL, MS_DB_ORACLE, MS_DB_POSTGRES};
@@ -1003,8 +1007,6 @@ extern "C" {
 #endif /* SWIG */
 
     char *font;
-    enum MS_FONT_TYPE type;
-
     colorObj color;
     colorObj outlinecolor;
     int outlinewidth;
@@ -1666,6 +1668,11 @@ extern "C" {
 #endif
 
     char *encoding; /* for iconving shape attributes. ignored if NULL or "utf-8" */
+
+  /* RFC93 UTFGrid support */
+    char *utfitem;
+    int utfitemindex;
+    expressionObj utfdata;
   };
 
 
@@ -1702,7 +1709,6 @@ typedef enum {
 
 void initTextPath(textPathObj *tp);
 int WARN_UNUSED msComputeTextPath(mapObj *map, textSymbolObj *ts);
-int WARN_UNUSED msComputeBitmapTextPath(rendererVTableObj *renderer, textSymbolObj *ts, textPathObj *tgret);
 void msCopyTextPath(textPathObj *dst, textPathObj *src);
 void freeTextPath(textPathObj *tp);
 void initTextSymbol(textSymbolObj *ts);
@@ -1825,6 +1831,10 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
     unsigned char encryption_key[MS_ENCRYPTION_KEY_SIZE]; /* 128bits encryption key */
 
     queryObj query;
+#endif
+
+#ifdef USE_V8
+    void *v8context;
 #endif
   };
 
@@ -2515,6 +2525,7 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
   MS_DLL_EXPORT char* msShapeGetLabelAnnotation(layerObj *layer, shapeObj *shape, labelObj *lbl);
   MS_DLL_EXPORT int msGetLabelStatus(mapObj *map, layerObj *layer, shapeObj *shape, labelObj *lbl);
   MS_DLL_EXPORT int msAdjustImage(rectObj rect, int *width, int *height);
+  MS_DLL_EXPORT char *msEvalTextExpression(expressionObj *expr, shapeObj *shape);
   MS_DLL_EXPORT double msAdjustExtent(rectObj *rect, int width, int height);
   MS_DLL_EXPORT int msConstrainExtent(rectObj *bounds, rectObj *rect, double overlay);
   MS_DLL_EXPORT int *msGetLayersIndexByGroup(mapObj *map, char *groupname, int *nCount);
@@ -2786,6 +2797,20 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
   /* ==================================================================== */
   /*      end of prototypes for functions in mapsmoothing.c               */
   /* ==================================================================== */
+
+  /* ==================================================================== */
+  /*      prototypes for functions in mapv8.cpp                           */
+  /* ==================================================================== */
+#ifdef USE_V8
+  MS_DLL_EXPORT char* msV8GetFeatureStyle(mapObj *map, const char *filename,
+                                          layerObj *layer, shapeObj *shape);
+  MS_DLL_EXPORT void msV8CreateContext(mapObj *map);
+  MS_DLL_EXPORT void msV8FreeContext(mapObj *map);
+#endif
+  /* ==================================================================== */
+  /*      end of prototypes for functions in mapv8.cpp                    */
+  /* ==================================================================== */
+
 #endif
 
 
@@ -2880,8 +2905,11 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
   MS_DLL_EXPORT int msPopulateRendererVTableCairoPDF( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableOGL( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableAGG( rendererVTableObj *renderer );
+  MS_DLL_EXPORT int msPopulateRendererVTableUTFGrid( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableKML( rendererVTableObj *renderer );
   MS_DLL_EXPORT int msPopulateRendererVTableOGR( rendererVTableObj *renderer );
+  MS_DLL_EXPORT int msPopulateRendererVTableOGR( rendererVTableObj *renderer );
+
 #ifdef USE_CAIRO
   MS_DLL_EXPORT void msCairoCleanup(void);
 #endif
@@ -2919,7 +2947,6 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
     int supports_transparent_layers;
     int supports_pixel_buffer;
     int supports_clipping;
-    int supports_bitmap_fonts;
     int supports_svg;
     int use_imagecache;
     enum MS_TRANSFORM_MODE default_transform_mode;
@@ -2933,9 +2960,6 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
     int WARN_UNUSED (*renderPolygon)(imageObj *img, shapeObj *p, colorObj *color);
     int WARN_UNUSED (*renderPolygonTiled)(imageObj *img, shapeObj *p, imageObj *tile);
     int WARN_UNUSED (*renderLineTiled)(imageObj *img, shapeObj *p, imageObj *tile);
-
-    int WARN_UNUSED (*renderBitmapGlyphs)(imageObj *img, textPathObj *tp, colorObj *clr, colorObj *olcolor, int olwidth);
-    int WARN_UNUSED (*getBitmapGlyphMetrics)(int size, unsigned int unicode, glyph_metrics *bounds);
 
     int WARN_UNUSED (*renderGlyphs)(imageObj *img, textPathObj *tp, colorObj *clr, colorObj *olcolor, int olwidth);
     int WARN_UNUSED (*renderText)(imageObj *img, pointObj *labelpnt, char *text, double angle, colorObj *clr, colorObj *olcolor, int olwidth);
@@ -2955,7 +2979,6 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
     int WARN_UNUSED (*renderTile)(imageObj *img, imageObj *tile, double x, double y);
 
     int WARN_UNUSED (*loadImageFromFile)(char *path, rasterBufferObj *rb);
-
 
     int WARN_UNUSED (*getRasterBufferHandle)(imageObj *img, rasterBufferObj *rb);
     int WARN_UNUSED (*getRasterBufferCopy)(imageObj *img, rasterBufferObj *rb);
