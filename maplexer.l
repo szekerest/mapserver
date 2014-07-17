@@ -334,6 +334,7 @@ char path[MS_MAXPATHLEN];
 <INITIAL,URL_STRING>overlaysymbol              { MS_LEXER_RETURN_TOKEN(OVERLAYSYMBOL); }
 <INITIAL>partials                              { MS_LEXER_RETURN_TOKEN(PARTIALS); }
 <INITIAL,URL_STRING>pattern                    { MS_LEXER_RETURN_TOKEN(PATTERN); }
+<INITIAL,URL_STRING>pixeladjustment            { MS_LEXER_RETURN_TOKEN(PIXELADJUSTMENT); }
 <INITIAL,URL_STRING>points                     { MS_LEXER_RETURN_TOKEN(POINTS); }
 <INITIAL>items                                 { MS_LEXER_RETURN_TOKEN(ITEMS); }
 <INITIAL,URL_STRING>position                   { MS_LEXER_RETURN_TOKEN(POSITION); }

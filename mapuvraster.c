@@ -380,8 +380,8 @@ int msUVRASTERLayerWhichShapes(layerObj *layer, rectObj rect, int isQuery)
 
   width = (int)ceil(layer->map->width/spacing);
   height = (int)ceil(layer->map->height/spacing);
-  map_cellsize = MS_MAX(MS_CELLSIZE(rect.minx, rect.maxx,layer->map->width),
-                        MS_CELLSIZE(rect.miny,rect.maxy,layer->map->height));
+  map_cellsize = MS_MAX(MS_CELLSIZE(rect.minx, rect.maxx,layer->map->width,layer->map->pixeladjustment),
+                        MS_CELLSIZE(rect.miny,rect.maxy,layer->map->height,layer->map->pixeladjustment));
   map_tmp->cellsize = map_cellsize*spacing;
   
   if (layer->debug)
@@ -409,8 +409,8 @@ int msUVRASTERLayerWhichShapes(layerObj *layer, rectObj rect, int isQuery)
   map_tmp->shapepath = msStrdup(layer->map->shapepath);
   map_tmp->extent.minx = rect.minx-(0.5*map_cellsize)+(0.5*map_tmp->cellsize);
   map_tmp->extent.miny = rect.miny-(0.5*map_cellsize)+(0.5*map_tmp->cellsize);
-  map_tmp->extent.maxx = map_tmp->extent.minx+((width-1)*map_tmp->cellsize);
-  map_tmp->extent.maxy = map_tmp->extent.miny+((height-1)*map_tmp->cellsize);
+  map_tmp->extent.maxx = map_tmp->extent.minx+((width - layer->map->pixeladjustment)*map_tmp->cellsize);
+  map_tmp->extent.maxy = map_tmp->extent.miny+((height - layer->map->pixeladjustment)*map_tmp->cellsize);
   map_tmp->gt.rotation_angle = 0.0;
 
    msCopyProjection(&map_tmp->projection, &layer->projection);

@@ -218,9 +218,9 @@ imageObj *msPrepareImage(mapObj *map, int allow_nonsquare)
     }
     map->cellsize = (cellsize_x*0.5 + cellsize_y*0.5);
   } else
-    map->cellsize = msAdjustExtent(&(map->extent),map->width,map->height);
+    map->cellsize = msAdjustExtent(&(map->extent),map->width,map->height,map->pixeladjustment);
 
-  status = msCalculateScale(map->extent,map->units,map->width,map->height, map->resolution, &map->scaledenom);
+  status = msCalculateScale(map->extent,map->units,map->width,map->height,map->pixeladjustment, map->resolution, &map->scaledenom);
   if(status != MS_SUCCESS) {
     msFreeImage(image);
     return(NULL);
@@ -601,7 +601,7 @@ int msLayerIsVisible(mapObj *map, layerObj *layer)
 {
   int i;
 
-  if(!layer->data && !layer->tileindex && !layer->connection && !layer->features && !layer->layerinfo)
+  if(!layer->data && !layer->tileindex && !layer->connection && !layer->features && !layer->grid)
     return(MS_FALSE); /* no data associated with this layer, not an error since layer may be used as a template from MapScript */
 
   if(layer->type == MS_LAYER_QUERY || layer->type == MS_LAYER_TILEINDEX) return(MS_FALSE);
@@ -952,8 +952,8 @@ int msDrawVectorLayer(mapObj *map, layerObj *layer, imageObj *image)
   }
   else {
     searchrect.minx = searchrect.miny = 0;
-    searchrect.maxx = map->width-1;
-    searchrect.maxy = map->height-1;
+    searchrect.maxx = map->width - map->pixeladjustment;
+    searchrect.maxy = map->height - map->pixeladjustment;
   }
 
   status = msLayerWhichShapes(layer, searchrect, MS_FALSE);

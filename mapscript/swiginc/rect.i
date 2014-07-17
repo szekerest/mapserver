@@ -78,8 +78,8 @@
         return msProjectRect(projin, projout, self);
     }
 
-    double fit(int width, int height) {
-        return  msAdjustExtent(self, width, height);
+    double fit(int width, int height, int pixeladjustment) {
+        return  msAdjustExtent(self, width, height, pixeladjustment);
     } 
 
     int draw(mapObj *map, layerObj *layer, imageObj *image, 

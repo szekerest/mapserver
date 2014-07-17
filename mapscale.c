@@ -74,7 +74,7 @@ static double roundInterval(double d)
 ** Calculate the approximate scale based on a few parameters. Note that this assumes the scale is
 ** the same in the x direction as in the y direction, so run msAdjustExtent(...) first.
 */
-int msCalculateScale(rectObj extent, int units, int width, int height, double resolution, double *scale)
+int msCalculateScale(rectObj extent, int units, int width, int height, int pixeladjustment,  double resolution, double *scale)
 {
   double md, gd, center_y;
 
@@ -98,7 +98,7 @@ int msCalculateScale(rectObj extent, int units, int width, int height, double re
     case(MS_INCHES):
     case(MS_FEET):
       center_y = (extent.miny+extent.maxy)/2.0;
-      md = (width-1)/(resolution*msInchesPerUnit(units, center_y)); /* remember, we use a pixel-center to pixel-center extent, hence the width-1 */
+      md = (width - pixeladjustment)/(resolution*msInchesPerUnit(units, center_y)); /* remember, we use a pixel-center to pixel-center extent, hence the width-1 */
       gd = extent.maxx - extent.minx;
       *scale = gd/md;
       break;
@@ -190,8 +190,8 @@ imageObj *msDrawScalebar(mapObj *map)
   fontWidth = (r.maxx-r.minx)/10.0;
   fontHeight = r.maxy -r.miny;
 
-  map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height);
-  status = msCalculateScale(map->extent, map->units, map->width, map->height, map->resolution, &map->scaledenom);
+  map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height, map->pixeladjustment);
+  status = msCalculateScale(map->extent, map->units, map->width, map->height, map->pixeladjustment, map->resolution, &map->scaledenom);
   if(status != MS_SUCCESS) {
     return(NULL);
   }
@@ -558,8 +558,10 @@ double Pix2Georef(int nPixPos, int nPixMin, int nPixMax,
 
 double Pix2LayerGeoref(mapObj *map, layerObj *layer, int value)
 {
-  double cellsize = MS_MAX(MS_CELLSIZE(map->extent.minx, map->extent.maxx, map->width),
-                           MS_CELLSIZE(map->extent.miny, map->extent.maxy, map->height));
+  double cellsize = MS_MAX(MS_CELLSIZE(map->extent.minx, map->extent.maxx, map->width,
+                                        map->pixeladjustment),
+                           MS_CELLSIZE(map->extent.miny, map->extent.maxy, map->height, 
+                                        map->pixeladjustment));
 
   double resolutionFactor = map->resolution/map->defresolution;
   double unitsFactor = 1;

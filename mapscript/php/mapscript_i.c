@@ -120,7 +120,7 @@ void mapObj_prepareQuery(mapObj* self)
 {
   int status;
 
-  status = msCalculateScale(self->extent, self->units, self->width, self->height, self->resolution, &self->scaledenom);
+  status = msCalculateScale(self->extent, self->units, self->width, self->height, self->pixeladjustment, self->resolution, &self->scaledenom);
   if(status != MS_SUCCESS) self->scaledenom = -1; // degenerate extents ok here
 }
 
@@ -1538,9 +1538,9 @@ int rectObj_project(rectObj *self, projectionObj *in, projectionObj *out)
   return msProjectRect(in, out, self);
 }
 
-double rectObj_fit(rectObj *self, int width, int height)
+double rectObj_fit(rectObj *self, int width, int height, int pixeladjustment)
 {
-  return  msAdjustExtent(self, width, height);
+  return  msAdjustExtent(self, width, height, pixeladjustment);
 }
 
 int rectObj_draw(rectObj *self, mapObj *map, layerObj *layer,

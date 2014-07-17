@@ -551,32 +551,38 @@ static void writeCharacter(FILE *stream, int indent, const char *name, const cha
   msIO_fprintf(stream, "%s '%c'\n", name, character);
 }
 
+static void writeStringElement(FILE *stream, char *string)
+{
+    char *string_escaped;
+
+    if(strchr(string,'\\')) {
+      string_escaped = msStrdup(string);
+      string_escaped = msReplaceSubstring(string_escaped,"\\","\\\\");
+    } else {
+      string_escaped = string;
+    }
+    if ( (strchr(string_escaped, '\'') == NULL) && (strchr(string_escaped, '\"') == NULL))
+      msIO_fprintf(stream, "\"%s\"", string_escaped);
+    else if ( (strchr(string_escaped, '\"') != NULL) && (strchr(string_escaped, '\'') == NULL))
+      msIO_fprintf(stream, "'%s'", string_escaped);
+    else if ( (strchr(string_escaped, '\'') != NULL) && (strchr(string_escaped, '\"') == NULL))
+      msIO_fprintf(stream, "\"%s\"", string_escaped);
+    else {
+      char *string_tmp = msStringEscape(string_escaped);
+      msIO_fprintf(stream, "\"%s\"", string_tmp);
+      if(string_escaped!=string_tmp) free(string_tmp);
+    }
+    if(string_escaped!=string) free(string_escaped);
+}
+
 static void writeString(FILE *stream, int indent, const char *name, const char *defaultString, char *string)
 {
-  char *string_escaped;
-
   if(!string) return;
   if(defaultString && strcmp(string, defaultString) == 0) return;
   writeIndent(stream, ++indent);
   if(name) msIO_fprintf(stream, "%s ", name);
-  if(strchr(string,'\\')) {
-    string_escaped = msStrdup(string);
-    string_escaped = msReplaceSubstring(string_escaped,"\\","\\\\");
-  } else {
-    string_escaped = string;
-  }
-  if ( (strchr(string_escaped, '\'') == NULL) && (strchr(string_escaped, '\"') == NULL))
-    msIO_fprintf(stream, "\"%s\"\n", string_escaped);
-  else if ( (strchr(string_escaped, '\"') != NULL) && (strchr(string_escaped, '\'') == NULL))
-    msIO_fprintf(stream, "'%s'\n", string_escaped);
-  else if ( (strchr(string_escaped, '\'') != NULL) && (strchr(string_escaped, '\"') == NULL))
-    msIO_fprintf(stream, "\"%s\"\n", string_escaped);
-  else {
-    char *string_tmp = msStringEscape(string_escaped);
-    msIO_fprintf(stream, "\"%s\"\n", string_tmp);
-    if(string_escaped!=string_tmp) free(string_tmp);
-  }
-  if(string_escaped!=string) free(string_escaped);
+  writeStringElement(stream, string);
+  writeLineFeed(stream);
 }
 
 static void writeNumberOrString(FILE *stream, int indent, const char *name, double defaultNumber, double number, char *string)
@@ -612,33 +618,13 @@ static void writeNumberOrKeyword(FILE *stream, int indent, const char *name, dou
 
 static void writeNameValuePair(FILE *stream, int indent, const char *name, const char *value)
 {
-  char *string_tmp;
   if(!name || !value) return;
   writeIndent(stream, ++indent);
 
-  if ( (strchr(name, '\'') == NULL) && (strchr(name, '\"') == NULL))
-    msIO_fprintf(stream, "\"%s\"\t", name);
-  else if ( (strchr(name, '\"') != NULL) && (strchr(name, '\'') == NULL))
-    msIO_fprintf(stream, "'%s'\t", name);
-  else if ( (strchr(name, '\'') != NULL) && (strchr(name, '\"') == NULL))
-    msIO_fprintf(stream, "\"%s\"\t", name);
-  else {
-    string_tmp = msStringEscape(name);
-    msIO_fprintf(stream, "\"%s\"\t", string_tmp);
-    if(name!=string_tmp) free(string_tmp);
-  }
-
-  if ( (strchr(value, '\'') == NULL) && (strchr(value, '\"') == NULL))
-    msIO_fprintf(stream, "\"%s\"\n", value);
-  else if ( (strchr(value, '\"') != NULL) && (strchr(value, '\'') == NULL))
-    msIO_fprintf(stream, "'%s'\n", value);
-  else if ( (strchr(value, '\'') != NULL) && (strchr(value, '\"') == NULL))
-    msIO_fprintf(stream, "\"%s\"\n", value);
-  else {
-    string_tmp = msStringEscape(value);
-    msIO_fprintf(stream, "\"%s\"\n", string_tmp);
-    if(value!=string_tmp) free(string_tmp);
-  }
+  writeStringElement(stream, (char*)name);
+  msIO_fprintf(stream,"\t");
+  writeStringElement(stream, (char*)value);
+  writeLineFeed(stream);
 }
 
 static void writeAttributeBinding(FILE *stream, int indent, const char *name, attributeBindingObj *binding)
@@ -998,6 +984,13 @@ void initGrid( graticuleObj *pGraticule )
   memset( pGraticule, 0, sizeof( graticuleObj ) );
 }
 
+void freeGrid( graticuleObj *pGraticule )
+{
+  msFree(pGraticule->labelformat);
+  msFree(pGraticule->pboundingpoints);
+  msFree(pGraticule->pboundinglines);
+}
+
 static int loadGrid( layerObj *pLayer )
 {
   for(;;) {
@@ -1010,35 +1003,35 @@ static int loadGrid( layerObj *pLayer )
       case(GRID):
         break; /* for string loads */
       case( LABELFORMAT ):
-        if(getString(&((graticuleObj *)pLayer->layerinfo)->labelformat) == MS_FAILURE) {
+        if(getString(&(pLayer->grid->labelformat)) == MS_FAILURE) {
           if(strcasecmp(msyystring_buffer, "DD") == 0) /* DD triggers a symbol to be returned instead of a string so check for this special case */
-            ((graticuleObj *)pLayer->layerinfo)->labelformat = msStrdup("DD");
+            pLayer->grid->labelformat = msStrdup("DD");
           else
             return(-1);
         }
         break;
       case( MINARCS ):
-        if(getDouble(&((graticuleObj *)pLayer->layerinfo)->minarcs) == -1)
+        if(getDouble(&(pLayer->grid->minarcs)) == -1)
           return(-1);
         break;
       case( MAXARCS ):
-        if(getDouble(&((graticuleObj *)pLayer->layerinfo)->maxarcs) == -1)
+        if(getDouble(&(pLayer->grid->maxarcs)) == -1)
           return(-1);
         break;
       case( MININTERVAL ):
-        if(getDouble(&((graticuleObj *)pLayer->layerinfo)->minincrement) == -1)
+        if(getDouble(&(pLayer->grid->minincrement)) == -1)
           return(-1);
         break;
       case( MAXINTERVAL ):
-        if(getDouble(&((graticuleObj *)pLayer->layerinfo)->maxincrement) == -1)
+        if(getDouble(&(pLayer->grid->maxincrement)) == -1)
           return(-1);
         break;
       case( MINSUBDIVIDE ):
-        if(getDouble(&((graticuleObj *)pLayer->layerinfo)->minsubdivides) == -1)
+        if(getDouble(&(pLayer->grid->minsubdivides)) == -1)
           return(-1);
         break;
       case( MAXSUBDIVIDE ):
-        if(getDouble(&((graticuleObj *)pLayer->layerinfo)->maxsubdivides) == -1)
+        if(getDouble(&(pLayer->grid->maxsubdivides)) == -1)
           return(-1);
         break;
       default:
@@ -2393,7 +2386,6 @@ char *msGetExpressionString(expressionObj *exp)
 
 static void writeExpression(FILE *stream, int indent, const char *name, expressionObj *exp)
 {
-  char *string_tmp;
   if(!exp || !exp->string) return;
 
   writeIndent(stream, ++indent);
@@ -2402,17 +2394,8 @@ static void writeExpression(FILE *stream, int indent, const char *name, expressi
       msIO_fprintf(stream, "%s /%s/", name, exp->string);
       break;
     case(MS_STRING):
-      if ( (strchr(exp->string, '\'') == NULL) && (strchr(exp->string, '\"') == NULL))
-        msIO_fprintf(stream, "%s \"%s\"", name, exp->string);
-      else if ( (strchr(exp->string, '\"') != NULL) && (strchr(exp->string, '\'') == NULL))
-        msIO_fprintf(stream, "%s \'%s\'", name, exp->string);
-      else if ( (strchr(exp->string, '\'') != NULL) && (strchr(exp->string, '\"') == NULL))
-        msIO_fprintf(stream, "%s \"%s\"", name, exp->string);
-      else {
-        string_tmp = msStringEscape(exp->string);
-        msIO_fprintf(stream, "%s \"%s\"", name, string_tmp);
-        if(exp->string!=string_tmp) free(string_tmp);
-      }
+      msIO_fprintf(stream, "%s ", name);
+      writeStringElement(stream, exp->string);
       break;
     case(MS_EXPRESSION):
       msIO_fprintf(stream, "%s (%s)", name, exp->string);
@@ -2486,7 +2469,11 @@ static void writeHashTableInline(FILE *stream, int indent, char *name, hashTable
     if (table->items[i] != NULL) {
       for (tp=table->items[i]; tp!=NULL; tp=tp->next) {
         writeIndent(stream, indent);
-        msIO_fprintf(stream, "%s \"%s\" \"%s\"\n", name, tp->key, tp->data);
+        msIO_fprintf(stream, "%s ", name);
+        writeStringElement(stream, tp->key);
+        msIO_fprintf(stream," ");
+        writeStringElement(stream, tp->data);
+        writeLineFeed(stream);
       }
     }
   }
@@ -3883,6 +3870,7 @@ int initLayer(layerObj *layer, mapObj *map)
 
   layer->mask = NULL;
   layer->maskimage = NULL;
+  layer->grid = NULL;
 
   return(0);
 }
@@ -3965,6 +3953,11 @@ int freeLayer(layerObj *layer)
   msFree(layer->mask);
   if(layer->maskimage) {
     msFreeImage(layer->maskimage);
+  }
+
+  if (layer->grid) {
+    freeGrid(layer->grid);
+    msFree(layer->grid);
   }
 
   return MS_SUCCESS;
@@ -4163,10 +4156,14 @@ int loadLayer(layerObj *layer, mapObj *map)
         break;
       case(GRID):
         layer->connectiontype = MS_GRATICULE;
-        layer->layerinfo = (void *) malloc(sizeof(graticuleObj));
-        MS_CHECK_ALLOC(layer->layerinfo, sizeof(graticuleObj), -1);
+        if (layer->grid) {
+          freeGrid(layer->grid);
+          msFree(layer->grid);
+        }
+        layer->grid = (void *) malloc(sizeof(graticuleObj));
+        MS_CHECK_ALLOC(layer->grid, sizeof(graticuleObj), -1);
 
-        initGrid((graticuleObj *) layer->layerinfo);
+        initGrid(layer->grid);
         loadGrid(layer);
         break;
       case(GROUP):
@@ -4511,8 +4508,8 @@ static void writeLayer(FILE *stream, int indent, layerObj *layer)
   for(i=0; i<layer->numjoins; i++)  writeJoin(stream, indent, &(layer->joins[i]));
   for(i=0; i<layer->numclasses; i++) writeClass(stream, indent, layer->class[i]);
 
-  if( layer->layerinfo &&  layer->connectiontype == MS_GRATICULE)
-    writeGrid(stream, indent, (graticuleObj *) layer->layerinfo);
+  if( layer->grid &&  layer->connectiontype == MS_GRATICULE)
+    writeGrid(stream, indent, layer->grid);
   else {
     current = layer->features;
     while(current != NULL) {
@@ -5645,6 +5642,7 @@ int initMap(mapObj *map)
 
   map->units = MS_METERS;
   map->cellsize = 0;
+  map->pixeladjustment = 1;
   map->shapepath = NULL;
   map->mappath = NULL;
 
@@ -5883,6 +5881,7 @@ static void writeMap(FILE *stream, int indent, mapObj *map)
   writeNumber(stream, indent, "MAXSIZE", MS_MAXIMAGESIZE_DEFAULT, map->maxsize);
   writeString(stream, indent, "NAME", NULL, map->name);
   writeNumber(stream, indent, "RESOLUTION", 72.0, map->resolution);
+  writeNumber(stream, indent, "PIXELADJUSTMENT", 1, map->pixeladjustment);
   writeString(stream, indent, "SHAPEPATH", NULL, map->shapepath);
   writeDimension(stream, indent, "SIZE", map->width, map->height, NULL, NULL);
   writeKeyword(stream, indent, "STATUS", map->status, 2, MS_ON, "ON", MS_OFF, "OFF");
@@ -6117,6 +6116,9 @@ static int loadMapInternal(mapObj *map)
         break;
       case(DEFRESOLUTION):
         if(getDouble(&(map->defresolution)) == -1) return MS_FAILURE;
+        break;
+       case(PIXELADJUSTMENT):
+        if(getInteger(&(map->pixeladjustment)) == -1) return MS_FAILURE;
         break;
       case(SCALE):
       case(SCALEDENOM):
@@ -6534,6 +6536,13 @@ int msUpdateMapFromURL(mapObj *map, char *variable, char *string)
           msyylex();
 
           if(getDouble(&(map->defresolution)) == -1) break;
+          break;
+        case(PIXELADJUSTMENT):
+          msyystate = MS_TOKENIZE_URL_STRING;
+          msyystring = string;
+          msyylex();
+
+          if(getInteger(&(map->pixeladjustment)) == -1) break;
           break;
         case(SCALEBAR):
           return msUpdateScalebarFromString(&(map->scalebar), string, MS_TRUE);

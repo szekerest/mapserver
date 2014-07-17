@@ -734,7 +734,7 @@ imageObj *msDrawReferenceMap(mapObj *map)
 
   /* make sure the extent given in mapfile fits the image */
   cellsize = msAdjustExtent(&(map->reference.extent),
-                            image->width, image->height);
+                            image->width, image->height, map->pixeladjustment);
 
   /* convert map extent to reference image coordinates */
   x1 = MS_MAP2IMAGE_X(map->extent.minx,  map->reference.extent.minx, cellsize);

@@ -807,7 +807,7 @@ int msWMSLoadGetMapParams(mapObj *map, int nVersion,
   /* request, but for now we assume all are optional and the map file */
   /* defaults will apply. */
 
-  msAdjustExtent(&(map->extent), map->width, map->height);
+  msAdjustExtent(&(map->extent), map->width, map->height, map->pixeladjustment);
 
   /*
     Check for SLDs first. If SLD is available LAYERS and STYLES parameters are non mandatory
@@ -1668,12 +1668,12 @@ this request. Check wms/ows_enable_request settings.",
     double  dx, dy;
 
     dx = (map->extent.maxx - map->extent.minx) / map->width;
-    map->extent.minx += dx*0.5;
-    map->extent.maxx -= dx*0.5;
+    map->extent.minx += dx*0.5*map->pixeladjustment;
+    map->extent.maxx -= dx*0.5*map->pixeladjustment;
 
     dy = (map->extent.maxy - map->extent.miny) / map->height;
-    map->extent.miny += dy*0.5;
-    map->extent.maxy -= dy*0.5;
+    map->extent.miny += dy*0.5*map->pixeladjustment;
+    map->extent.maxy -= dy*0.5*map->pixeladjustment;
   }
 
   if (request && strcasecmp(request, "DescribeLayer") != 0) {
@@ -3929,7 +3929,7 @@ int msWMSFeatureInfo(mapObj *map, int nVersion, char **names, char **values, int
 
   /*make sure to initialize the map scale so that layers that are scale dependent are resepected for
     the query*/
-  msCalculateScale(map->extent,map->units,map->width,map->height, map->resolution, &map->scaledenom);
+  msCalculateScale(map->extent,map->units,map->width,map->height,map->pixeladjustment, map->resolution, &map->scaledenom);
 
   /* -------------------------------------------------------------------- */
   /*      check if all layers selected are queryable. If not send an      */
@@ -3975,8 +3975,8 @@ int msWMSFeatureInfo(mapObj *map, int nVersion, char **names, char **values, int
       }
     }
     /* Perform the actual query */
-    cellx = MS_CELLSIZE(map->extent.minx, map->extent.maxx, map->width); /* note: don't adjust extent, WMS assumes incoming extent is correct */
-    celly = MS_CELLSIZE(map->extent.miny, map->extent.maxy, map->height);
+    cellx = MS_CELLSIZE(map->extent.minx, map->extent.maxx, map->width, map->pixeladjustment); /* note: don't adjust extent, WMS assumes incoming extent is correct */
+    celly = MS_CELLSIZE(map->extent.miny, map->extent.maxy, map->height, map->pixeladjustment);
     point.x = MS_IMAGE2MAP_X(point.x, map->extent.minx, cellx);
     point.y = MS_IMAGE2MAP_Y(point.y, map->extent.maxy, celly);
 

@@ -1068,8 +1068,10 @@ void setCoordinate(mapservObj *mapserv)
 {
   double cellx,celly;
 
-  cellx = MS_CELLSIZE(mapserv->ImgExt.minx, mapserv->ImgExt.maxx, mapserv->ImgCols);
-  celly = MS_CELLSIZE(mapserv->ImgExt.miny, mapserv->ImgExt.maxy, mapserv->ImgRows);
+  cellx = MS_CELLSIZE(mapserv->ImgExt.minx, mapserv->ImgExt.maxx, mapserv->ImgCols, 
+                        mapserv->map->pixeladjustment);
+  celly = MS_CELLSIZE(mapserv->ImgExt.miny, mapserv->ImgExt.maxy, mapserv->ImgRows, 
+                        mapserv->map->pixeladjustment);
 
   mapserv->mappnt.x = MS_IMAGE2MAP_X(mapserv->ImgPnt.x, mapserv->ImgExt.minx, cellx);
   mapserv->mappnt.y = MS_IMAGE2MAP_Y(mapserv->ImgPnt.y, mapserv->ImgExt.maxy, celly);
@@ -1294,15 +1296,15 @@ int msCGIDispatchQueryRequest(mapservObj *mapserv)
             if(mapserv->SearchMap) { /* compute new extent, pan etc then search that extent */
               if(MS_SUCCESS != setExtent(mapserv)) /* set user area of interest */
                 return MS_FAILURE;
-              mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height);
-              if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
+              mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment);
+              if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
               mapserv->map->query.rect = mapserv->map->extent;
               mapserv->map->query.type = MS_QUERY_BY_RECT;
             } else {
               mapserv->map->extent = mapserv->ImgExt; /* use the existing image parameters */
               mapserv->map->width = mapserv->ImgCols;
               mapserv->map->height = mapserv->ImgRows;
-              if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
+              if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
               mapserv->map->query.point = mapserv->mappnt;
               mapserv->map->query.type = MS_QUERY_BY_POINT;
             }
@@ -1311,8 +1313,8 @@ int msCGIDispatchQueryRequest(mapservObj *mapserv)
           case FROMIMGBOX:
             if(mapserv->SearchMap) { /* compute new extent, pan etc then search that extent */
               setExtent(mapserv);
-              if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
-              mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height);
+              if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
+              mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment);
               mapserv->map->query.rect = mapserv->map->extent;
               mapserv->map->query.type = MS_QUERY_BY_RECT;
             } else {
@@ -1321,9 +1323,11 @@ int msCGIDispatchQueryRequest(mapservObj *mapserv)
               mapserv->map->extent = mapserv->ImgExt; /* use the existing image parameters */
               mapserv->map->width = mapserv->ImgCols;
               mapserv->map->height = mapserv->ImgRows;
-              if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
-              cellx = MS_CELLSIZE(mapserv->ImgExt.minx, mapserv->ImgExt.maxx, mapserv->ImgCols); /* calculate the new search extent */
-              celly = MS_CELLSIZE(mapserv->ImgExt.miny, mapserv->ImgExt.maxy, mapserv->ImgRows);
+              if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
+              cellx = MS_CELLSIZE(mapserv->ImgExt.minx, mapserv->ImgExt.maxx, mapserv->ImgCols, 
+                        mapserv->map->pixeladjustment); /* calculate the new search extent */
+              celly = MS_CELLSIZE(mapserv->ImgExt.miny, mapserv->ImgExt.maxy, mapserv->ImgRows,
+                        mapserv->map->pixeladjustment);
               mapserv->RawExt.minx = MS_IMAGE2MAP_X(mapserv->ImgBox.minx, mapserv->ImgExt.minx, cellx);
               mapserv->RawExt.maxx = MS_IMAGE2MAP_X(mapserv->ImgBox.maxx, mapserv->ImgExt.minx, cellx);
               mapserv->RawExt.maxy = MS_IMAGE2MAP_Y(mapserv->ImgBox.miny, mapserv->ImgExt.maxy, celly); /* y's are flip flopped because img/map coordinate systems are */
@@ -1337,8 +1341,8 @@ int msCGIDispatchQueryRequest(mapservObj *mapserv)
             mapserv->map->extent = mapserv->ImgExt; /* use the existing image parameters */
             mapserv->map->width = mapserv->ImgCols;
             mapserv->map->height = mapserv->ImgRows;
-            mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height);
-            if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
+            mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment);
+            if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
 
             /* convert from image to map coordinates here (see setCoordinate) */
             for(i=0; i<mapserv->map->query.shape->numlines; i++) {
@@ -1358,8 +1362,8 @@ int msCGIDispatchQueryRequest(mapservObj *mapserv)
             } else {
               setExtent(mapserv);
               if(mapserv->SearchMap) { /* the extent should be tied to a map, so we need to "adjust" it */
-                if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
-                mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height);
+                if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
+                mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment);
               }
               mapserv->map->query.rect = mapserv->map->extent;
               mapserv->map->query.type = MS_QUERY_BY_RECT;
@@ -1372,8 +1376,8 @@ int msCGIDispatchQueryRequest(mapservObj *mapserv)
           default: /* from an extent of some sort */
             setExtent(mapserv);
             if(mapserv->SearchMap) { /* the extent should be tied to a map, so we need to "adjust" it */
-              if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
-              mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height);
+              if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
+              mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment);
             }
 
             mapserv->map->query.rect = mapserv->map->extent;
@@ -1388,7 +1392,7 @@ int msCGIDispatchQueryRequest(mapservObj *mapserv)
             mapserv->map->extent = mapserv->ImgExt; /* use the existing image parameters */
             mapserv->map->width = mapserv->ImgCols;
             mapserv->map->height = mapserv->ImgRows;
-            if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
+            if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return MS_FAILURE;
             break;
           case FROMUSERPNT: /* only a buffer makes sense, DOES IT? */
             if(setExtent(mapserv) != MS_SUCCESS) return MS_FAILURE;
@@ -1448,7 +1452,7 @@ int msCGIDispatchImageRequest(mapservObj *mapserv)
         img = msDrawMap(mapserv->map, MS_FALSE);
       break;
     case REFERENCE:
-      mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height);
+      mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment);
       img = msDrawReferenceMap(mapserv->map);
       break;
     case SCALEBAR:
@@ -1655,7 +1659,8 @@ int msCGIDispatchRequest(mapservObj *mapserv)
   */
 
   if((mapserv->CoordSource == FROMIMGPNT) || (mapserv->CoordSource == FROMIMGBOX)) /* make sure extent of existing image matches shape of image */
-    mapserv->map->cellsize = msAdjustExtent(&mapserv->ImgExt, mapserv->ImgCols, mapserv->ImgRows);
+    mapserv->map->cellsize = msAdjustExtent(&mapserv->ImgExt, mapserv->ImgCols, mapserv->ImgRows,
+                                mapserv->map->pixeladjustment);
 
   /*
   ** For each layer let's set layer status

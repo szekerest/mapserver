@@ -67,7 +67,7 @@ int msGraticuleLayerInitItemInfo(layerObj *layer);
  */
 int msGraticuleLayerOpen(layerObj *layer)
 {
-  graticuleObj *pInfo = (graticuleObj *) layer->layerinfo;
+  graticuleObj *pInfo = layer->grid;
 
   if( pInfo == NULL )
     return MS_FAILURE;
@@ -115,7 +115,7 @@ int msGraticuleLayerOpen(layerObj *layer)
  */
 int msGraticuleLayerIsOpen(layerObj *layer)
 {
-  if(layer->layerinfo)
+  if(layer->grid)
     return MS_TRUE;
 
   return MS_FALSE;
@@ -127,26 +127,6 @@ int msGraticuleLayerIsOpen(layerObj *layer)
  */
 int msGraticuleLayerClose(layerObj *layer)
 {
-  graticuleObj *pInfo = (graticuleObj *) layer->layerinfo;
-
-  if( pInfo->labelformat ) {
-    free( pInfo->labelformat );
-    pInfo->labelformat = NULL;
-  }
-
-  if( pInfo->pboundingpoints ) {
-    free( pInfo->pboundingpoints );
-    pInfo->pboundingpoints = NULL;
-  }
-
-  if( pInfo->pboundinglines ) {
-    free( pInfo->pboundinglines );
-    pInfo->pboundinglines = NULL;
-  }
-
-  free(layer->layerinfo);
-  layer->layerinfo=NULL;
-
   return MS_SUCCESS;
 }
 
@@ -155,7 +135,7 @@ int msGraticuleLayerClose(layerObj *layer)
  */
 int msGraticuleLayerWhichShapes(layerObj *layer, rectObj rect, int isQuery)
 {
-  graticuleObj *pInfo = (graticuleObj *) layer->layerinfo;
+  graticuleObj *pInfo = layer->grid;
   int iAxisTickCount = 0;
   rectObj rectMapCoordinates;
 
@@ -207,7 +187,9 @@ int msGraticuleLayerWhichShapes(layerObj *layer, rectObj rect, int isQuery)
    * These lines will be used when generating labels to get correct placement at arc/rect edge intersections.
    */
   rectMapCoordinates = layer->map->extent;
+  msFree(pInfo->pboundinglines);
   pInfo->pboundinglines   = (lineObj *)  msSmallMalloc( sizeof( lineObj )  * 4 );
+  msFree(pInfo->pboundingpoints);
   pInfo->pboundingpoints = (pointObj *) msSmallMalloc( sizeof( pointObj ) * 8 );
 
   {
@@ -289,7 +271,7 @@ int msGraticuleLayerWhichShapes(layerObj *layer, rectObj rect, int isQuery)
  */
 int msGraticuleLayerNextShape(layerObj *layer, shapeObj *shape)
 {
-  graticuleObj *pInfo = (graticuleObj *) layer->layerinfo;
+  graticuleObj *pInfo = layer->grid;
 
   if( pInfo->minsubdivides <= 0.0 || pInfo->maxsubdivides <= 0.0 )
     pInfo->minsubdivides = pInfo->maxsubdivides = MAPGRATICULE_ARC_SUBDIVISION_DEFAULT;
@@ -535,7 +517,7 @@ int msGraticuleLayerGetShape(layerObj *layer, shapeObj *shape, resultObj *record
  */
 int msGraticuleLayerGetExtent(layerObj *layer, rectObj *extent)
 {
-  graticuleObj *pInfo = (graticuleObj  *) layer->layerinfo;
+  graticuleObj *pInfo = layer->grid;
 
   if(pInfo) {
     *extent = pInfo->extent;
@@ -638,11 +620,11 @@ graticuleIntersectionObj *msGraticuleLayerGetIntersectionPoints(mapObj *map,
   if (layer->connectiontype != MS_GRATICULE)
     return NULL;
 
-  pInfo  = (graticuleObj *) layer->layerinfo;
+  pInfo  = layer->grid;
 
   /*set cellsize if bnot already set*/
   if (map->cellsize == 0)
-    map->cellsize = msAdjustExtent(&(map->extent),map->width,map->height);
+    map->cellsize = msAdjustExtent(&(map->extent),map->width,map->height,map->pixeladjustment);
 
   psValues = (graticuleIntersectionObj *)msSmallMalloc(sizeof(graticuleIntersectionObj));
 
@@ -652,8 +634,8 @@ graticuleIntersectionObj *msGraticuleLayerGetIntersectionPoints(mapObj *map,
     searchrect = map->extent;
   else {
     searchrect.minx = searchrect.miny = 0;
-    searchrect.maxx = map->width-1;
-    searchrect.maxy = map->height-1;
+    searchrect.maxx = map->width - map->pixeladjustment;
+    searchrect.maxy = map->height - map->pixeladjustment;
   }
 
 #ifdef USE_PROJ
@@ -1006,7 +988,7 @@ int msGraticuleLayerInitializeVirtualTable(layerObj *layer)
  */
 static void _FormatLabel( layerObj *pLayer, shapeObj *pShape, double dDataToFormat )
 {
-  graticuleObj *pInfo = (graticuleObj  *) pLayer->layerinfo;
+  graticuleObj *pInfo = pLayer->grid;
   char cBuffer[32];
   int iDegrees, iMinutes;
 
@@ -1041,13 +1023,13 @@ static void _FormatLabel( layerObj *pLayer, shapeObj *pShape, double dDataToForm
  */
 static int _AdjustLabelPosition( layerObj *pLayer, shapeObj *pShape, msGraticulePosition ePosition )
 {
-  graticuleObj *pInfo = (graticuleObj  *) pLayer->layerinfo;
+  graticuleObj *pInfo = pLayer->grid;
   rectObj rectLabel;
   pointObj ptPoint;
   double size = -1;
 
   if( pInfo == NULL || pShape == NULL ) {
-    msSetError(MS_MISCERR, "Assertion failed: Null shape or layerinfo!, ", "_AdjustLabelPosition()");
+    msSetError(MS_MISCERR, "Assertion failed: Null shape or non-configured grid!, ", "_AdjustLabelPosition()");
     return MS_FAILURE;
   }
 

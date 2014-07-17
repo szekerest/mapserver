@@ -393,8 +393,8 @@ int msLegendCalcSize(mapObj *map, int scale_independent, int *size_x, int *size_
 
   /* enable scale-dependent calculations */
   if(!scale_independent) {
-    map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height);
-    status = msCalculateScale(map->extent, map->units, map->width, map->height, map->resolution, &map->scaledenom);
+    map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height,map->pixeladjustment);
+    status = msCalculateScale(map->extent, map->units, map->width, map->height, map->pixeladjustment, map->resolution, &map->scaledenom);
     if(status != MS_SUCCESS) return MS_FAILURE;
   }
 
@@ -604,7 +604,7 @@ imageObj *msDrawLegend(mapObj *map, int scale_independent)
 
     /* set the scale factor so that scale dependant symbols are drawn in the legend with their default size */
     if(cur->layer->sizeunits != MS_PIXELS) {
-      map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height);
+      map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height, map->pixeladjustment);
       cur->layer->scalefactor = (msInchesPerUnit(cur->layer->sizeunits,0)/msInchesPerUnit(map->units,0)) / map->cellsize;
     }
     if(msDrawLegendIcon(map, cur->layer, cur->theclass,  map->legend.keysizex,  map->legend.keysizey, image, HMARGIN, (int) pnt.y) != MS_SUCCESS)

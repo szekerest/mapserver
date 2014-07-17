@@ -455,11 +455,11 @@ int msTileSetExtent(mapservObj* msObj)
   ** This is the way mapserver does it.
   */
   dx = (map->extent.maxx - map->extent.minx) / map->width;
-  map->extent.minx += dx*0.5;
-  map->extent.maxx -= dx*0.5;
+  map->extent.minx += dx*0.5*map->pixeladjustment;
+  map->extent.maxx -= dx*0.5*map->pixeladjustment;
   dy = (map->extent.maxy - map->extent.miny) / map->height;
-  map->extent.miny += dy*0.5;
-  map->extent.maxy -= dy*0.5;
+  map->extent.miny += dy*0.5*map->pixeladjustment;
+  map->extent.maxy -= dy*0.5*map->pixeladjustment;
 
   /*
   ** Ensure the labelcache buffer is greater than the tile buffer.

@@ -612,8 +612,8 @@ int msDrawChartLayer(mapObj *map, layerObj *layer, imageObj *image)
       searchrect = map->extent;
     else {
       searchrect.minx = searchrect.miny = 0;
-      searchrect.maxx = map->width-1;
-      searchrect.maxy = map->height-1;
+      searchrect.maxx = map->width - map->pixeladjustment;
+      searchrect.maxy = map->height - map->pixeladjustment;
     }
 
 #ifdef USE_PROJ
