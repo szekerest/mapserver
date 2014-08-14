@@ -740,7 +740,7 @@ double msAdjustExtent(rectObj *rect, int width, int height, int pixeladjustment)
 {
   double cellsize, ox, oy;
 
-  if(width == 1 || height == 1)
+  if(width == pixeladjustment || height == pixeladjustment)
     return 0;
 
   cellsize = MS_MAX(MS_CELLSIZE(rect->minx, rect->maxx, width, pixeladjustment), MS_CELLSIZE(rect->miny, rect->maxy, height, pixeladjustment));

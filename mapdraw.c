@@ -220,6 +220,11 @@ imageObj *msPrepareImage(mapObj *map, int allow_nonsquare)
   } else
     map->cellsize = msAdjustExtent(&(map->extent),map->width,map->height,map->pixeladjustment);
 
+  if(map->cellsize == 0) {
+    msSetError(MS_MISCERR, "Invalid map extent or image size.", "msAdjustExtent()");
+    return(NULL);
+  }
+
   status = msCalculateScale(map->extent,map->units,map->width,map->height,map->pixeladjustment, map->resolution, &map->scaledenom);
   if(status != MS_SUCCESS) {
     msFreeImage(image);
