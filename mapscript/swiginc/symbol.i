@@ -130,7 +130,7 @@
         }
 
         renderer = format->vtable;
-        msPreloadImageSymbol(renderer, self);
+        msPreloadImageSymbol(format, self);
         if (self->pixmap_buffer) 
         {
             image = msImageCreate(self->pixmap_buffer->width, self->pixmap_buffer->height, format, NULL, NULL,

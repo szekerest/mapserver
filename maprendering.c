@@ -204,7 +204,7 @@ imageObj *getTile(imageObj *img, symbolObj *symbol,  symbolStyleObj *s, int widt
           renderer->renderTruetypeSymbol(tileimg, p_x, p_y, symbol, s);
           break;
         case (MS_SYMBOL_PIXMAP):
-          if(msPreloadImageSymbol(renderer,symbol) != MS_SUCCESS) {
+          if(msPreloadImageSymbol(img->format,symbol) != MS_SUCCESS) {
             return NULL; /* failed to load image, renderer should have set the error message */
           }
           renderer->renderPixmapSymbol(tileimg, p_x, p_y, symbol, s);
@@ -256,7 +256,7 @@ imageObj *getTile(imageObj *img, symbolObj *symbol,  symbolStyleObj *s, int widt
               renderer->renderTruetypeSymbol(tile3img, p_x, p_y, symbol, s);
               break;
             case (MS_SYMBOL_PIXMAP):
-              if(msPreloadImageSymbol(renderer,symbol) != MS_SUCCESS) {
+              if(msPreloadImageSymbol(img->format,symbol) != MS_SUCCESS) {
                 return NULL; /* failed to load image, renderer should have set the error message */
               }
               renderer->renderPixmapSymbol(tile3img, p_x, p_y, symbol, s);
@@ -480,7 +480,13 @@ int msDrawLineSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p,
 
       symbol = symbolset->symbol[style->symbol];
       /* store a reference to the renderer to be used for freeing */
-      symbol->renderer = renderer;
+      if (symbol->format != image->format) {
+        /* clean up previous output format */
+        if( symbol->format && --symbol->format->refcount < 1 )
+          msFreeOutputFormat( symbol->format );
+        symbol->format = image->format;
+        symbol->format->refcount++;
+      }
 
       width = style->width * scalefactor;
       width = MS_MIN(width,style->maxwidth*image->resolutionfactor);
@@ -533,7 +539,7 @@ int msDrawLineSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p,
           break;
           case (MS_SYMBOL_PIXMAP): {
             if(!symbol->pixmap_buffer) {
-              if(MS_SUCCESS != msPreloadImageSymbol(renderer,symbol))
+              if(MS_SUCCESS != msPreloadImageSymbol(image->format,symbol))
                 return MS_FAILURE;
             }
           }
@@ -630,8 +636,15 @@ int msDrawShadeSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p, sty
       shapeObj *offsetPolygon = NULL;
       symbolObj *symbol = symbolset->symbol[style->symbol];
       /* store a reference to the renderer to be used for freeing */
-      if(style->symbol)
-        symbol->renderer = renderer;
+      if(style->symbol) {
+        if (symbol->format != image->format) {
+          /* clean up previous output format */
+          if( symbol->format && --symbol->format->refcount < 1 )
+            msFreeOutputFormat( symbol->format );
+          symbol->format = image->format;
+          symbol->format->refcount++;
+        }
+      }
 
       if (style->offsetx != 0 || style->offsety != 0) {
         if(style->offsety==-99)
@@ -689,7 +702,7 @@ int msDrawShadeSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p, sty
 
         switch(symbol->type) {
           case MS_SYMBOL_PIXMAP:
-            if(MS_SUCCESS != msPreloadImageSymbol(renderer,symbol)) {
+            if(MS_SUCCESS != msPreloadImageSymbol(image->format,symbol)) {
               ret = MS_FAILURE;
               goto cleanup;
             }
@@ -799,7 +812,13 @@ int msDrawMarkerSymbol(symbolSetObj *symbolset,imageObj *image, pointObj *p, sty
       double p_x,p_y;
       symbolObj *symbol = symbolset->symbol[style->symbol];
       /* store a reference to the renderer to be used for freeing */
-      symbol->renderer = renderer;
+      if (symbol->format != image->format) {
+        /* clean up previous output format */
+        if( symbol->format && --symbol->format->refcount < 1 )
+          msFreeOutputFormat( symbol->format );
+        symbol->format = image->format;
+        symbol->format->refcount++;
+      }
       switch (symbol->type) {
         case (MS_SYMBOL_TRUETYPE): {
           if (!symbol->full_font_path)
@@ -813,7 +832,7 @@ int msDrawMarkerSymbol(symbolSetObj *symbolset,imageObj *image, pointObj *p, sty
         break;
         case (MS_SYMBOL_PIXMAP): {
           if (!symbol->pixmap_buffer) {
-            if (MS_SUCCESS != msPreloadImageSymbol(renderer, symbol))
+            if (MS_SUCCESS != msPreloadImageSymbol(image->format, symbol))
               return MS_FAILURE;
           }
         }

@@ -106,6 +106,7 @@ typedef uint32_t        ms_uint32;
 /*forward declaration of rendering object*/
 typedef struct rendererVTableObj rendererVTableObj;
 typedef struct tileCacheObj tileCacheObj;
+typedef struct outputFormatObj outputFormatObj;
 
 
 /* ms_bitarray is used by the bit mask in mapbit.c */
@@ -752,7 +753,7 @@ extern "C" {
   /*      see mapoutput.c for most related code.                          */
   /************************************************************************/
 
-  typedef struct {
+  typedef struct outputFormatObj {
     char *name;
     char *mimetype;
     char *driver;
@@ -769,7 +770,7 @@ extern "C" {
     rendererVTableObj *vtable;
     void *device; /* for supporting direct rendering onto a device context */
 #endif
-  } outputFormatObj;
+  };
 
   /* The following is used for "don't care" values in transparent, interlace and
      imagequality values. */
@@ -2067,7 +2068,7 @@ extern "C" {
   MS_DLL_EXPORT symbolObj *msRemoveSymbol(symbolSetObj *symbolset, int index);
   MS_DLL_EXPORT int msSaveSymbolSet(symbolSetObj *symbolset, const char *filename);
   MS_DLL_EXPORT int msLoadImageSymbol(symbolObj *symbol, const char *filename);
-  MS_DLL_EXPORT int msPreloadImageSymbol(rendererVTableObj *renderer, symbolObj *symbol);
+  MS_DLL_EXPORT int msPreloadImageSymbol(outputFormatObj *format, symbolObj *symbol);
   MS_DLL_EXPORT int msPreloadSVGSymbol(symbolObj *symbol);
   MS_DLL_EXPORT symbolObj *msRotateSymbol(symbolObj *symbol, double angle);
 

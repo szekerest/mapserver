@@ -2045,7 +2045,7 @@ imageObj *symbolObj_getImage(symbolObj *self, outputFormatObj *input_format)
   }
 
   renderer = format->vtable;
-  msPreloadImageSymbol(renderer, self);
+  msPreloadImageSymbol(format, self);
   if (self->pixmap_buffer) {
     image = msImageCreate(self->pixmap_buffer->width, self->pixmap_buffer->height, format, NULL, NULL,
                           MS_DEFAULT_RESOLUTION, MS_DEFAULT_RESOLUTION, NULL);

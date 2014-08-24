@@ -281,21 +281,6 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass,
 
     altrenderer->getRasterBufferHandle(image_draw,&rb);
     renderer->mergeRasterBuffer(image,&rb,lp->opacity*0.01,0,0,0,0,rb.width,rb.height);
-    /*
-     * hack to work around bug #3834: if we have use an alternate renderer, the symbolset may contain
-     * symbols that reference it. We want to remove those references before the altFormat is destroyed
-     * to avoid a segfault and/or a leak, and so the the main renderer doesn't pick the cache up thinking
-     * it's for him.
-     */
-    for(i=0; i<map->symbolset.numsymbols; i++) {
-      if (map->symbolset.symbol[i]!=NULL) {
-        symbolObj *s = map->symbolset.symbol[i];
-        if(s->renderer == altrenderer) {
-          altrenderer->freeSymbol(s);
-          s->renderer = NULL;
-        }
-      }
-    }
     msFreeImage(image_draw);
 
   } else if(image != image_draw) {
@@ -654,8 +639,13 @@ int msEmbedLegend(mapObj *map, imageObj *img)
   rendererVTableObj *renderer;
 
   s = msGetSymbolIndex(&(map->symbolset), "legend", MS_FALSE);
-  if(s != -1)
-    msRemoveSymbol(&(map->symbolset), s); /* solves some caching issues in AGG with long-running processes */
+  if(s != -1) {
+    legendSymbol = msRemoveSymbol(&(map->symbolset), s); /* solves some caching issues in AGG with long-running processes */
+    if (legendSymbol && legendSymbol->refcount == 0) {
+      msFreeSymbol(legendSymbol); /* clean up */
+      msFree(legendSymbol);
+    }
+  }
 
   if(msGrowSymbolSet(&map->symbolset) == NULL)
     return -1;
@@ -690,8 +680,14 @@ int msEmbedLegend(mapObj *map, imageObj *img)
 
   if(MS_SUCCESS != renderer->getRasterBufferCopy(image,legendSymbol->pixmap_buffer))
     return MS_FAILURE;
-  legendSymbol->renderer = renderer;
-
+  if (legendSymbol->format != map->outputformat) {
+    /* clean up previous output format */
+    if( legendSymbol->format && --legendSymbol->format->refcount < 1 )
+      msFreeOutputFormat( legendSymbol->format );
+    legendSymbol->format = map->outputformat;
+    legendSymbol->format->refcount++;
+  }
+  
   msFreeImage( image );
 
   if(!legendSymbol->pixmap_buffer) return(-1); /* something went wrong creating scalebar */
