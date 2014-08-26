@@ -106,7 +106,7 @@ typedef uint32_t        ms_uint32;
 /*forward declaration of rendering object*/
 typedef struct rendererVTableObj rendererVTableObj;
 typedef struct tileCacheObj tileCacheObj;
-typedef struct outputFormatObj outputFormatObj;
+typedef struct tag_outputFormatObj outputFormatObj;
 
 
 /* ms_bitarray is used by the bit mask in mapbit.c */
@@ -753,7 +753,7 @@ extern "C" {
   /*      see mapoutput.c for most related code.                          */
   /************************************************************************/
 
-  typedef struct outputFormatObj {
+  typedef struct tag_outputFormatObj {
     char *name;
     char *mimetype;
     char *driver;
@@ -770,7 +770,7 @@ extern "C" {
     rendererVTableObj *vtable;
     void *device; /* for supporting direct rendering onto a device context */
 #endif
-  };
+  } outputFormatObj;
 
   /* The following is used for "don't care" values in transparent, interlace and
      imagequality values. */
