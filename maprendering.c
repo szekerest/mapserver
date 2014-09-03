@@ -480,7 +480,13 @@ int msDrawLineSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p,
 
       symbol = symbolset->symbol[style->symbol];
       /* store a reference to the renderer to be used for freeing */
-      symbol->renderer = renderer;
+      if (symbol->renderer != renderer) {
+        symbol->renderer = renderer;
+        if (symbol->renderer_free_func) 
+          symbol->renderer_free_func(symbol);
+
+        symbol->renderer_free_func = renderer->freeSymbol;
+      }
 
       width = style->width * scalefactor;
       width = MS_MIN(width,style->maxwidth*image->resolutionfactor);
@@ -630,8 +636,13 @@ int msDrawShadeSymbol(symbolSetObj *symbolset, imageObj *image, shapeObj *p, sty
       shapeObj *offsetPolygon = NULL;
       symbolObj *symbol = symbolset->symbol[style->symbol];
       /* store a reference to the renderer to be used for freeing */
-      if(style->symbol)
+      if(style->symbol && symbol->renderer != renderer) {
         symbol->renderer = renderer;
+        if(symbol->renderer_free_func) 
+          symbol->renderer_free_func(symbol);
+
+        symbol->renderer_free_func = renderer->freeSymbol;
+      }
 
       if (style->offsetx != 0 || style->offsety != 0) {
         if(style->offsety==-99)
@@ -799,7 +810,13 @@ int msDrawMarkerSymbol(symbolSetObj *symbolset,imageObj *image, pointObj *p, sty
       double p_x,p_y;
       symbolObj *symbol = symbolset->symbol[style->symbol];
       /* store a reference to the renderer to be used for freeing */
-      symbol->renderer = renderer;
+      if (symbol->renderer != renderer) {
+        symbol->renderer = renderer;
+        if (symbol->renderer_free_func) 
+          symbol->renderer_free_func(symbol);
+
+        symbol->renderer_free_func = renderer->freeSymbol;
+      }
       switch (symbol->type) {
         case (MS_SYMBOL_TRUETYPE): {
           if (!symbol->full_font_path)
