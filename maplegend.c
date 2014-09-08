@@ -281,21 +281,7 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass,
 
     altrenderer->getRasterBufferHandle(image_draw,&rb);
     renderer->mergeRasterBuffer(image,&rb,lp->opacity*0.01,0,0,0,0,rb.width,rb.height);
-    /*
-     * hack to work around bug #3834: if we have use an alternate renderer, the symbolset may contain
-     * symbols that reference it. We want to remove those references before the altFormat is destroyed
-     * to avoid a segfault and/or a leak, and so the the main renderer doesn't pick the cache up thinking
-     * it's for him.
-     */
-    for(i=0; i<map->symbolset.numsymbols; i++) {
-      if (map->symbolset.symbol[i]!=NULL) {
-        symbolObj *s = map->symbolset.symbol[i];
-        if(s->renderer == altrenderer) {
-          altrenderer->freeSymbol(s);
-          s->renderer = NULL;
-        }
-      }
-    }
+    
     msFreeImage(image_draw);
 
   } else if(image != image_draw) {
@@ -691,6 +677,7 @@ int msEmbedLegend(mapObj *map, imageObj *img)
   if(MS_SUCCESS != renderer->getRasterBufferCopy(image,legendSymbol->pixmap_buffer))
     return MS_FAILURE;
   legendSymbol->renderer = renderer;
+  legendSymbol->renderer_free_func = renderer->freeSymbol;
 
   msFreeImage( image );
 
