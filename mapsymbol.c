@@ -136,10 +136,6 @@ int msFreeSymbol(symbolObj *s)
   if(s->name) free(s->name);
   if(s->renderer_free_func) {
     s->renderer_free_func(s);
-  } else {
-    if(s->renderer!=NULL) {
-      s->renderer->freeSymbol(s);
-    }
   }
   if(s->pixmap_buffer) {
     msFreeRasterBuffer(s->pixmap_buffer);
@@ -868,7 +864,13 @@ int msPreloadImageSymbol(rendererVTableObj *renderer, symbolObj *symbol)
     symbol->pixmap_buffer = NULL;
     return MS_FAILURE;
   }
-  symbol->renderer = renderer;
+  if (symbol->renderer != renderer) {
+    symbol->renderer = renderer;
+    if (symbol->renderer_free_func) 
+      symbol->renderer_free_func(symbol);
+
+    symbol->renderer_free_func = renderer->freeSymbol;
+  }
   symbol->sizex = symbol->pixmap_buffer->width;
   symbol->sizey = symbol->pixmap_buffer->height;
   return MS_SUCCESS;

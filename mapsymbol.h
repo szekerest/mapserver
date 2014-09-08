@@ -182,7 +182,7 @@ struct symbolObj{
   ** MS_SYMBOL_PIXMAP options
   */
 #ifndef SWIG
-  rendererVTableObj *renderer;
+  rendererVTableObj *renderer; /* should not be used to access vtable just to identify the renderer */
   void (*renderer_free_func)(symbolObj *self);
   rasterBufferObj *pixmap_buffer;
   void *renderer_cache;
