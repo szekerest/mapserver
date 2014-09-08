@@ -111,7 +111,7 @@ void initSymbol(symbolObj *s)
   s->sizey = 1;
   s->filled = MS_FALSE;
   s->numpoints=0;
-  s->format=NULL;
+  s->renderer=NULL;
   s->renderer_cache = NULL;
   s->pixmap_buffer=NULL;
   s->imagepath = NULL;
@@ -136,12 +136,8 @@ int msFreeSymbol(symbolObj *s)
   }
 
   if(s->name) free(s->name);
-  if(s->format!=NULL) {
-    if (s->format->vtable!=NULL)
-      s->format->vtable->freeSymbol(s);
-    /* clean up output format */
-    if( --s->format->refcount < 1 )
-      msFreeOutputFormat( s->format );
+  if(s->renderer!=NULL) {
+    s->renderer->freeSymbol(s);
   }
   if(s->pixmap_buffer) {
     msFreeRasterBuffer(s->pixmap_buffer);
@@ -628,7 +624,7 @@ int msGetMarkerSize(symbolSetObj *symbolset, styleObj *style, double *width, dou
 
   symbol = symbolset->symbol[style->symbol];
   if (symbol->type == MS_SYMBOL_PIXMAP && !symbol->pixmap_buffer) {
-    if (MS_SUCCESS != msPreloadImageSymbol(symbolset->map->outputformat, symbol))
+    if (MS_SUCCESS != msPreloadImageSymbol(MS_MAP_RENDERER(symbolset->map), symbol))
       return MS_FAILURE;
   }
   if(symbol->type == MS_SYMBOL_SVG && !symbol->renderer_cache) {
@@ -826,28 +822,22 @@ int msLoadImageSymbol(symbolObj *symbol, const char *filename)
   return MS_SUCCESS;
 }
 
-int msPreloadImageSymbol(outputFormatObj *format, symbolObj *symbol)
+int msPreloadImageSymbol(rendererVTableObj *renderer, symbolObj *symbol)
 {
-  if(symbol->pixmap_buffer && symbol->format == format)
+  if(symbol->pixmap_buffer && symbol->renderer == renderer)
     return MS_SUCCESS;
   if(symbol->pixmap_buffer) { /* other renderer was used, start again */
     msFreeRasterBuffer(symbol->pixmap_buffer);
   } else {
     symbol->pixmap_buffer = (rasterBufferObj*)calloc(1,sizeof(rasterBufferObj));
   }
-  if(MS_SUCCESS != format->vtable->loadImageFromFile(symbol->full_pixmap_path, symbol->pixmap_buffer)) {
+  if(MS_SUCCESS != renderer->loadImageFromFile(symbol->full_pixmap_path, symbol->pixmap_buffer)) {
     /* Free pixmap_buffer already allocated */
     free(symbol->pixmap_buffer);
     symbol->pixmap_buffer = NULL;
     return MS_FAILURE;
   }
-  if (symbol->format != format) {
-    /* clean up previous output format */
-    if( symbol->format && --symbol->format->refcount < 1 )
-      msFreeOutputFormat( symbol->format );
-    symbol->format = format;
-    symbol->format->refcount++;
-  }
+  symbol->renderer = renderer;
   symbol->sizex = symbol->pixmap_buffer->width;
   symbol->sizey = symbol->pixmap_buffer->height;
   return MS_SUCCESS;

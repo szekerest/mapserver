@@ -344,14 +344,9 @@ int msEmbedScalebar(mapObj *map, imageObj *img)
   char* imageType = NULL;
 
   index = msGetSymbolIndex(&(map->symbolset), "scalebar", MS_FALSE);
-  if(index != -1) {
-    embededSymbol = msRemoveSymbol(&(map->symbolset), index); /* remove cached symbol in case the function is called multiple
+  if(index != -1)
+    msRemoveSymbol(&(map->symbolset), index); /* remove cached symbol in case the function is called multiple
                       times with different zoom levels */
-    if (embededSymbol && embededSymbol->refcount == 0) {
-      msFreeSymbol(embededSymbol); /* clean up */
-      msFree(embededSymbol);
-    }
-  }
 
   if((embededSymbol=msGrowSymbolSet(&map->symbolset)) == NULL)
     return MS_FAILURE;

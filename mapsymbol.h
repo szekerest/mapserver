@@ -191,7 +191,7 @@ typedef struct {
   ** MS_SYMBOL_PIXMAP options
   */
 #ifndef SWIG
-  outputFormatObj *format;
+  rendererVTableObj *renderer;
   rasterBufferObj *pixmap_buffer;
   void *renderer_cache;
   char *full_font_path;
