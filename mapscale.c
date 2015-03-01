@@ -70,6 +70,20 @@ static double roundInterval(double d)
   return(-1);
 }
 
+static double roundInterval2(double d)
+{
+  double magnitude, ratio;
+      
+  magnitude = floor(log10(d));
+  ratio = d / pow(10, magnitude);
+  if (ratio < 1.5) ratio = 1;
+  else if (ratio < 4) ratio = 2;
+  else if (ratio < 8) ratio = 5;
+  else ratio = 10;
+
+  return ratio * pow(10, magnitude);
+}
+
 /*
 ** Calculate the approximate scale based on a few parameters. Note that this assumes the scale is
 ** the same in the x direction as in the y direction, so run msAdjustExtent(...) first.
@@ -154,6 +168,7 @@ imageObj *msDrawScalebar(mapObj *map)
   double i, msx;
   int j;
   int isx, sx, sy, ox, oy, state, dsx;
+  int units;
   pointObj p;
   rectObj r;
   imageObj      *image = NULL;
@@ -179,6 +194,8 @@ imageObj *msDrawScalebar(mapObj *map)
     msSetError(MS_MISCERR, "Outputformat not supported for scalebar", "msDrawScalebar()");
     return(NULL);
   }
+
+  units = map->scalebar.units;
   
   msPopulateTextSymbolForLabelAndString(&ts,&map->scalebar.label,msStrdup("0123456789"),1.0,map->resolution/map->defresolution, 0);
 
@@ -201,11 +218,21 @@ imageObj *msDrawScalebar(mapObj *map)
   }
   dsx = map->scalebar.width - 2*HMARGIN;
   do {
-    msx = (map->cellsize * dsx)/(msInchesPerUnit(map->scalebar.units,0)/msInchesPerUnit(map->units,0));
-    i = roundInterval(msx/map->scalebar.intervals);
+    msx = (map->cellsize * dsx)/(msInchesPerUnit(units,0)/msInchesPerUnit(map->units,0));
+    i = roundInterval2(msx/map->scalebar.intervals);
+    if (units == MS_METERS && i >= 1000) {
+        /* switch meters to kilometers if needed */
+        units = MS_KILOMETERS;
+        i /= 1000;
+    }
+    else if (units == MS_KILOMETERS && i <= 0.001) {
+        /* switch kilometers to meters if needed */
+        units = MS_METERS;
+        i *= 1000;
+    }
     snprintf(label, sizeof(label), "%g", map->scalebar.intervals*i); /* last label */
-    isx = MS_NINT((i/(msInchesPerUnit(map->units,0)/msInchesPerUnit(map->scalebar.units,0)))/map->cellsize);
-    sx = (map->scalebar.intervals*isx) + MS_NINT((1.5 + strlen(label)/2.0 + strlen(unitText[map->scalebar.units]))*fontWidth);
+    isx = MS_NINT((i/(msInchesPerUnit(map->units,0)/msInchesPerUnit(units,0)))/map->cellsize);
+    sx = (map->scalebar.intervals*isx) + MS_NINT((1.5 + strlen(label)/2.0 + strlen(unitText[units]))*fontWidth);
 
     if(sx <= (map->scalebar.width - 2*HMARGIN)) break; /* it will fit */
 
@@ -300,7 +327,7 @@ imageObj *msDrawScalebar(mapObj *map)
       }
       sprintf(label, "%g", j*i);
       ox = ox + j*isx - MS_NINT((strlen(label)*fontWidth)/2.0);
-      sprintf(label, "%g %s", j*i, unitText[map->scalebar.units]);
+      sprintf(label, "%g %s", j*i, unitText[units]);
       map->scalebar.label.position = MS_CR;
       p.x = ox; /* + MS_NINT(fontPtr->w/2); */
       p.y = oy + map->scalebar.height + MS_NINT(VSPACING*fontHeight);
@@ -343,7 +370,7 @@ imageObj *msDrawScalebar(mapObj *map)
           map->scalebar.label.position = MS_CC;
           p.x = ox + j*isx; /* + MS_NINT(fontPtr->w/2); */
         } else {
-          sprintf(label, "%g %s", j*i, unitText[map->scalebar.units]);
+          sprintf(label, "%g %s", j*i, unitText[units]);
           map->scalebar.label.position = MS_CR;
           p.x = ox + j*isx - MS_NINT((strlen(label)*fontWidth)/2.0);
         }
