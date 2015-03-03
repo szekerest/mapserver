@@ -371,7 +371,17 @@ int msLegendCalcSize(mapObj *map, int scale_independent, int *size_x, int *size_
   char *text, *transformedText; /* legend text before/after applying wrapping, encoding if necessary */
   layerObj *lp;
   rectObj rect;
+  double resolutionfactor;
+  int keysizex, keysizey, keyspacingx, keyspacingy, hMargin, vMargin;
   int current_layers=0;
+
+  resolutionfactor = map->resolution/map->defresolution;
+  keysizex = MS_NINT(resolutionfactor * map->legend.keysizex);
+  keysizey = MS_NINT(resolutionfactor * map->legend.keysizey);
+  keyspacingx = MS_NINT(resolutionfactor * map->legend.keyspacingx);
+  keyspacingy = MS_NINT(resolutionfactor * map->legend.keyspacingy);
+  hMargin = MS_NINT(resolutionfactor * HMARGIN);
+  vMargin = MS_NINT(resolutionfactor * VMARGIN);
 
   /* reset sizes */
   *size_x = 0;
@@ -441,17 +451,17 @@ int msLegendCalcSize(mapObj *map, int scale_independent, int *size_x, int *size_
       }
 
       msFree(transformedText);
-      maxwidth = MS_MAX(maxwidth, MS_NINT(rect.maxx - rect.minx));
-      *size_y += MS_MAX(MS_NINT(rect.maxy - rect.miny), map->legend.keysizey);
+      maxwidth = MS_MAX(maxwidth, MS_NINT((rect.maxx - rect.minx)*resolutionfactor));
+      *size_y += MS_MAX(MS_NINT((rect.maxy - rect.miny)*resolutionfactor), keysizey);
       nLegendItems++;
     }
   }
 
   /* Calculate the size of the legend: */
   /*   - account for the Y keyspacing */
-  *size_y += (2*VMARGIN) + ((nLegendItems-1) * map->legend.keyspacingy);
+  *size_y += (2*vMargin) + ((nLegendItems-1) * keyspacingy);
   /*   - determine the legend width */
-  *size_x = (2*HMARGIN) + maxwidth + map->legend.keyspacingx + map->legend.keysizex;
+  *size_x = (2*hMargin) + maxwidth + keyspacingx + keysizex;
 
   if(*size_y <=0 ||  *size_x <=0)
     return MS_FAILURE;
@@ -479,6 +489,8 @@ imageObj *msDrawLegend(mapObj *map, int scale_independent)
   imageObj *image = NULL;
   outputFormatObj *format = NULL;
   char *text;
+  double resolutionfactor;
+  int keysizex, keysizey, keyspacingx, keyspacingy, hMargin, vMargin;
 
   struct legend_struct {
     int height;
@@ -495,6 +507,15 @@ imageObj *msDrawLegend(mapObj *map, int scale_independent)
     return NULL;
   }
   if(msValidateContexts(map) != MS_SUCCESS) return NULL; /* make sure there are no recursive REQUIRES or LABELREQUIRES expressions */
+
+  resolutionfactor = map->resolution/map->defresolution;
+  keysizex = MS_NINT(resolutionfactor * map->legend.keysizex);
+  keysizey = MS_NINT(resolutionfactor * map->legend.keysizey);
+  keyspacingx = MS_NINT(resolutionfactor * map->legend.keyspacingx);
+  keyspacingy = MS_NINT(resolutionfactor * map->legend.keyspacingy);
+  hMargin = MS_NINT(resolutionfactor * HMARGIN);
+  vMargin = MS_NINT(resolutionfactor * VMARGIN);
+
   if(msLegendCalcSize(map, scale_independent, &size_x, &size_y, NULL, 0) != MS_SUCCESS) return NULL;
 
   /*
@@ -561,7 +582,7 @@ imageObj *msDrawLegend(mapObj *map, int scale_independent)
         return(NULL);
       }
 
-      cur->height = MS_MAX(MS_NINT(rect.maxy - rect.miny), map->legend.keysizey);
+      cur->height = MS_MAX(MS_NINT((rect.maxy - rect.miny)*resolutionfactor), keysizey);
     }
   }
 
@@ -582,8 +603,8 @@ imageObj *msDrawLegend(mapObj *map, int scale_independent)
 #ifdef USE_GD
   msClearPenValues(map); /* just in case the mapfile has already been processed */
 #endif
-  pnt.y = VMARGIN;
-  pnt.x = HMARGIN + map->legend.keysizex + map->legend.keyspacingx;
+  pnt.y = vMargin;
+  pnt.x = hMargin + keysizex + keyspacingx;
 
   while(cur) { /* cur initially points on the last legend item, i.e. the one that should be at the top */
     int number_of_newlines=0, offset=0;
@@ -593,7 +614,7 @@ imageObj *msDrawLegend(mapObj *map, int scale_independent)
       map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height, map->pixeladjustment);
       cur->layer->scalefactor = (msInchesPerUnit(cur->layer->sizeunits,0)/msInchesPerUnit(map->units,0)) / map->cellsize;
     }
-    if(msDrawLegendIcon(map, cur->layer, cur->theclass,  map->legend.keysizex,  map->legend.keysizey, image, HMARGIN, (int) pnt.y) != MS_SUCCESS)
+    if(msDrawLegendIcon(map, cur->layer, cur->theclass,  keysizex,  keysizey, image, hMargin, (int) pnt.y) != MS_SUCCESS)
       return NULL;
 
     /*
@@ -611,12 +632,12 @@ imageObj *msDrawLegend(mapObj *map, int scale_independent)
 
     /* TODO: note tbonfort: if this todo concerned treating the individual heights of the legend labels, then this is now done */
 
-    msDrawLabel(map, image, pnt, cur->transformedText, &(map->legend.label), 1.0);
+    msDrawLabel(map, image, pnt, cur->transformedText, &(map->legend.label), resolutionfactor);
     if(offset) {
       /* if we had multiple lines, adjust the current position so it points to the bottom of the current label */
       pnt.y += cur->height-offset;
     }
-    pnt.y += map->legend.keyspacingy; /* bump y for next label */
+    pnt.y += keyspacingy; /* bump y for next label */
 
     /* clean up */
     free(cur->transformedText);
@@ -739,7 +760,7 @@ int msEmbedLegend(mapObj *map, imageObj *img)
   }
 
   GET_LAYER(map, l)->status = MS_ON;
-
+  GET_LAYER(map, l)->scalefactor = 1; /* no need to magnify symbol */
   if(map->legend.postlabelcache) { /* add it directly to the image */
     if(msMaybeAllocateClassStyle(GET_LAYER(map, l)->class[0], 0)==MS_FAILURE) return MS_FAILURE;
     GET_LAYER(map, l)->class[0]->styles[0]->symbol = s;
