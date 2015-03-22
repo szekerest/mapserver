@@ -342,6 +342,14 @@ imageObj *msCreateLegendIcon(mapObj* map, layerObj* lp, classObj* class, int wid
 #ifdef USE_GD
     msClearLayerPenValues(lp); /* just in case the mapfile has already been processed */
 #endif
+    /* compute layer scale factor now */
+    if(lp->sizeunits != MS_PIXELS)
+      lp->scalefactor = (msInchesPerUnit(lp->sizeunits,0)/msInchesPerUnit(map->units,0)) / map->cellsize;
+    else if(lp->symbolscaledenom > 0 && map->scaledenom > 0)
+      lp->scalefactor = lp->symbolscaledenom/map->scaledenom*map->resolution/map->defresolution;
+    else
+      lp->scalefactor = map->resolution/map->defresolution;
+
     if (class) {
       msDrawLegendIcon(map, lp, class, width, height, image, 0, 0);
     } else {
