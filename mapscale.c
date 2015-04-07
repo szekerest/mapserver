@@ -385,11 +385,15 @@ int msEmbedScalebar(mapObj *map, imageObj *img)
   s = map->symbolset.numsymbols;
   map->symbolset.numsymbols++;
 
-  if(!MS_RENDERER_PLUGIN(map->outputformat) || !(MS_MAP_RENDERER(map)->supports_pixel_buffer
-      || MS_MAP_RENDERER(map)->supports_svg)) {
+  if(!MS_RENDERER_PLUGIN(map->outputformat) || !MS_MAP_RENDERER(map)->supports_pixel_buffer) {
     imageType = msStrdup(map->imagetype); /* save format */
-    if MS_DRIVER_CAIRO(map->outputformat)
+    if MS_DRIVER_CAIRO(map->outputformat) {
+#ifdef USE_SVG_CAIRO
+      map->outputformat = msSelectOutputFormat( map, "svg" );
+#else
       map->outputformat = msSelectOutputFormat( map, "cairopng" );
+#endif
+    }
     else
       map->outputformat = msSelectOutputFormat( map, "png" );
     
@@ -411,7 +415,7 @@ int msEmbedScalebar(mapObj *map, imageObj *img)
   /* intialize a few things */
   embededSymbol->name = msStrdup("scalebar");
 
-  if (MS_MAP_RENDERER(map)->supports_svg) {
+  if (!strcasecmp(image->format->driver,"cairo/svg")) {
     int size;
     char* svg_text;
     embededSymbol->type = MS_SYMBOL_SVG;

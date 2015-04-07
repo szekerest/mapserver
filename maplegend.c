@@ -679,11 +679,15 @@ int msEmbedLegend(mapObj *map, imageObj *img)
   map->symbolset.numsymbols++;
   initSymbol(legendSymbol);
 
-  if(!MS_RENDERER_PLUGIN(map->outputformat) || !(MS_MAP_RENDERER(map)->supports_pixel_buffer
-      || MS_MAP_RENDERER(map)->supports_svg)) {
+  if(!MS_RENDERER_PLUGIN(map->outputformat) || !MS_MAP_RENDERER(map)->supports_pixel_buffer) {
     imageType = msStrdup(map->imagetype); /* save format */
-    if MS_DRIVER_CAIRO(map->outputformat)
+    if MS_DRIVER_CAIRO(map->outputformat) {
+#ifdef USE_SVG_CAIRO
+      map->outputformat = msSelectOutputFormat( map, "svg" );
+#else
       map->outputformat = msSelectOutputFormat( map, "cairopng" );
+#endif
+    }
     else
       map->outputformat = msSelectOutputFormat( map, "png" );
     
@@ -701,7 +705,7 @@ int msEmbedLegend(mapObj *map, imageObj *img)
   }
 
   /* copy renderered legend image into symbol */
-  if (MS_MAP_RENDERER(map)->supports_svg) {
+  if (!strcasecmp(image->format->driver,"cairo/svg")) {
     int size;
     char* svg_text;
     legendSymbol->type = MS_SYMBOL_SVG;
