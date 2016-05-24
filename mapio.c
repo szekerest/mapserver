@@ -46,6 +46,7 @@
 
 
 static int is_msIO_initialized = MS_FALSE;
+static int is_msIO_header_enabled = MS_TRUE;
 
 typedef struct msIOContextGroup_t {
   msIOContext stdin_context;
@@ -173,6 +174,15 @@ msIOContext *msIO_getHandler( FILE * fp )
     return NULL;
 }
 
+/************************************************************************/
+/*                      msIO_setHeaderEnabled()                         */
+/************************************************************************/
+
+void msIO_setHeaderEnabled(int bFlag)
+{
+    is_msIO_header_enabled = bFlag;
+}
+
 void msIO_setHeader (const char *header, const char* value, ...)
 {
   va_list args;
@@ -195,12 +205,15 @@ void msIO_setHeader (const char *header, const char* value, ...)
     }
   } else {
 #endif // MOD_WMS_ENABLED
-    msIO_fprintf(stdout,"%s: ",header);
-    msIO_vfprintf(stdout,value,args);
-    msIO_fprintf(stdout,"\r\n");
+    if( is_msIO_header_enabled ) {
+      msIO_fprintf(stdout,"%s: ",header);
+      msIO_vfprintf(stdout,value,args);
+      msIO_fprintf(stdout,"\r\n");
+    }
 #ifdef MOD_WMS_ENABLED
   }
 #endif
+  va_end( args );
 }
 
 void msIO_sendHeaders ()
@@ -209,8 +222,10 @@ void msIO_sendHeaders ()
   msIOContext *ioctx = msIO_getHandler (stdout);
   if(ioctx && !strcmp(ioctx->label,"apache")) return;
 #endif // !MOD_WMS_ENABLED
-  msIO_printf ("\r\n");
-  fflush (stdout);
+  if( is_msIO_header_enabled ) {
+    msIO_printf ("\r\n");
+    fflush (stdout);
+  }
 }
 
 
