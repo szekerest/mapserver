@@ -256,6 +256,9 @@ imageObj *msDrawScalebar(mapObj *map)
     if(!MS_VALID_COLOR(map->scalebar.imagecolor))
       MS_INIT_COLOR(map->scalebar.imagecolor,255,255,255,255);
   }
+
+  msSetOutputFormatOption(format, "DPI", "100");
+
   image = msImageCreate(scalebarWidth, sy, format,
                         map->web.imagepath, map->web.imageurl, map->resolution, map->defresolution, &map->scalebar.imagecolor);
 
