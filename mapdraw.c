@@ -899,6 +899,7 @@ int msDrawVectorLayer(mapObj *map, layerObj *layer, imageObj *image)
   shapeObj    shape;
   rectObj     searchrect;
   char        cache=MS_FALSE;
+  char        needcache=MS_TRUE;
   int         maxnumstyles=1;
   featureListNodeObjPtr shpcache=NULL, current=NULL;
   int nclasses = 0;
@@ -967,6 +968,9 @@ int msDrawVectorLayer(mapObj *map, layerObj *layer, imageObj *image)
   if(layer->minfeaturesize > 0)
     minfeaturesize = Pix2LayerGeoref(map, layer, layer->minfeaturesize);
 
+  if (msLayerGetProcessingKey(layer, "SHAPE_NO_CACHE"))
+    needcache = MS_FALSE;
+
   while((status = msLayerNextShape(layer, &shape)) == MS_SUCCESS) {
 
     /* Check if the shape size is ok to be drawn */
@@ -991,7 +995,7 @@ int msDrawVectorLayer(mapObj *map, layerObj *layer, imageObj *image)
     featuresdrawn++;
 
     cache = MS_FALSE;
-    if(layer->type == MS_LAYER_LINE && (layer->class[shape.classindex]->numstyles > 1 || (layer->class[shape.classindex]->numstyles == 1 && layer->class[shape.classindex]->styles[0]->outlinewidth > 0))) {
+    if(layer->type == MS_LAYER_LINE && needcache == MS_TRUE && (layer->class[shape.classindex]->numstyles > 1 || (layer->class[shape.classindex]->numstyles == 1 && layer->class[shape.classindex]->styles[0]->outlinewidth > 0))) {
       int i;
       cache = MS_TRUE; /* only line layers with multiple styles need be cached (I don't think POLYLINE layers need caching - SDL) */
 
