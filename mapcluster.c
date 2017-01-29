@@ -928,8 +928,8 @@ int RebuildClusters(layerObj *layer, int isQuery)
     searchrect = map->extent;
   else {
     searchrect.minx = searchrect.miny = 0;
-    searchrect.maxx = map->width-1;
-    searchrect.maxy = map->height-1;
+    searchrect.maxx = map->width - map->pixeladjustment;
+    searchrect.maxy = map->height - map->pixeladjustment;
   }
 
   if (searchrect.minx == layerinfo->searchRect.minx &&
@@ -974,8 +974,8 @@ int RebuildClusters(layerObj *layer, int isQuery)
       distance *= 2;
       ++depth;
     }
-    cellSizeX = MS_CELLSIZE(searchrect.minx, searchrect.maxx, map->width);
-    cellSizeY = MS_CELLSIZE(searchrect.miny, searchrect.maxy, map->height);
+    cellSizeX = MS_CELLSIZE(searchrect.minx, searchrect.maxx, map->width, map->pixeladjustment);
+    cellSizeY = MS_CELLSIZE(searchrect.miny, searchrect.maxy, map->height, map->pixeladjustment);
   }
 
   layerinfo->depth = depth;

@@ -1212,9 +1212,9 @@ PHP_METHOD(mapObj, zoomPoint)
   /*      if the min and max scale are set in the map file, we will       */
   /*      use them to test before zooming.                                */
   /* -------------------------------------------------------------------- */
-  msAdjustExtent(&newGeoRefExtent, php_map->map->width, php_map->map->height);
+  msAdjustExtent(&newGeoRefExtent, php_map->map->width, php_map->map->height, php_map->map->pixeladjustment);
   if (msCalculateScale(newGeoRefExtent, php_map->map->units,
-                       php_map->map->width, php_map->map->height,
+                       php_map->map->width, php_map->map->height, php_map->map->pixeladjustment,
                        php_map->map->resolution, &dfNewScale) != MS_SUCCESS) {
     mapscript_throw_mapserver_exception("" TSRMLS_CC);
     return;
@@ -1285,7 +1285,7 @@ PHP_METHOD(mapObj, zoomPoint)
   php_map->map->extent.maxy = newGeoRefExtent.maxy;
 
   php_map->map->cellsize = msAdjustExtent(&(php_map->map->extent), php_map->map->width,
-                                          php_map->map->height);
+                                          php_map->map->height, php_map->map->pixeladjustment);
   dfDeltaX = php_map->map->extent.maxx - php_map->map->extent.minx;
   dfDeltaY = php_map->map->extent.maxy - php_map->map->extent.miny;
 
@@ -1308,7 +1308,7 @@ PHP_METHOD(mapObj, zoomPoint)
     }
   }
 
-  if (msCalculateScale(php_map->map->extent, php_map->map->units, php_map->map->width, php_map->map->height,
+  if (msCalculateScale(php_map->map->extent, php_map->map->units, php_map->map->width, php_map->map->height, php_map->map->pixeladjustment,
                        php_map->map->resolution, &(php_map->map->scaledenom)) != MS_SUCCESS) {
     mapscript_throw_mapserver_exception("" TSRMLS_CC);
     return;
@@ -1400,14 +1400,14 @@ PHP_METHOD(mapObj, zoomRectangle)
                                     height,
                                     php_geoRefExtent->rect->miny, php_geoRefExtent->rect->maxy, 1);
 
-  msAdjustExtent(&newGeoRefExtent, php_map->map->width, php_map->map->height);
+  msAdjustExtent(&newGeoRefExtent, php_map->map->width, php_map->map->height, php_map->map->pixeladjustment);
 
   /* -------------------------------------------------------------------- */
   /*      if the min and max scale are set in the map file, we will       */
   /*      use them to test before setting extents.                        */
   /* -------------------------------------------------------------------- */
   if (msCalculateScale(newGeoRefExtent, php_map->map->units,
-                       php_map->map->width, php_map->map->height,
+                       php_map->map->width, php_map->map->height, php_map->map->pixeladjustment,
                        php_map->map->resolution, &dfNewScale) != MS_SUCCESS) {
     mapscript_throw_mapserver_exception("" TSRMLS_CC);
     return;
@@ -1475,7 +1475,7 @@ PHP_METHOD(mapObj, zoomRectangle)
   php_map->map->extent.maxy = newGeoRefExtent.maxy;
 
   php_map->map->cellsize = msAdjustExtent(&(php_map->map->extent), php_map->map->width,
-                                          php_map->map->height);
+                                          php_map->map->height, php_map->map->pixeladjustment);
   dfDeltaX = php_map->map->extent.maxx - php_map->map->extent.minx;
   dfDeltaY = php_map->map->extent.maxy - php_map->map->extent.miny;
 
@@ -1498,7 +1498,7 @@ PHP_METHOD(mapObj, zoomRectangle)
     }
   }
 
-  if (msCalculateScale(php_map->map->extent, php_map->map->units, php_map->map->width, php_map->map->height,
+  if (msCalculateScale(php_map->map->extent, php_map->map->units, php_map->map->width, php_map->map->height, php_map->map->pixeladjustment,
                        php_map->map->resolution, &(php_map->map->scaledenom)) != MS_SUCCESS) {
     mapscript_throw_mapserver_exception("" TSRMLS_CC);
     return;
@@ -1620,7 +1620,7 @@ PHP_METHOD(mapObj, zoomScale)
   /*      get current scale.                                              */
   /* -------------------------------------------------------------------- */
   if (msCalculateScale(*php_geoRefExtent->rect, php_map->map->units,
-                       php_map->map->width, php_map->map->height,
+                       php_map->map->width, php_map->map->height, php_map->map->pixeladjustment,
                        php_map->map->resolution, &dfCurrentScale) != MS_SUCCESS) {
     mapscript_throw_mapserver_exception("" TSRMLS_CC);
     return;
@@ -1636,7 +1636,7 @@ PHP_METHOD(mapObj, zoomScale)
   /* -------------------------------------------------------------------- */
   msAdjustExtent(&newGeoRefExtent, php_map->map->width, php_map->map->height);
   if (msCalculateScale(newGeoRefExtent, php_map->map->units,
-                       php_map->map->width, php_map->map->height,
+                       php_map->map->width, php_map->map->height, php_map->map->pixeladjustment,
                        php_map->map->resolution, &dfNewScale) != MS_SUCCESS) {
     mapscript_throw_mapserver_exception("" TSRMLS_CC);
     return;
@@ -1708,7 +1708,7 @@ PHP_METHOD(mapObj, zoomScale)
 
 
   php_map->map->cellsize = msAdjustExtent(&(php_map->map->extent), php_map->map->width,
-                                          php_map->map->height);
+                                          php_map->map->height, php_map->map->pixeladjustment);
   dfDeltaX = php_map->map->extent.maxx - php_map->map->extent.minx;
   dfDeltaY = php_map->map->extent.maxy - php_map->map->extent.miny;
 
@@ -1731,7 +1731,7 @@ PHP_METHOD(mapObj, zoomScale)
     }
   }
 
-  if (msCalculateScale(php_map->map->extent, php_map->map->units, php_map->map->width, php_map->map->height,
+  if (msCalculateScale(php_map->map->extent, php_map->map->units, php_map->map->width, php_map->map->height, php_map->map->pixeladjustment,
                        php_map->map->resolution, &(php_map->map->scaledenom)) != MS_SUCCESS) {
     mapscript_throw_mapserver_exception("" TSRMLS_CC);
     return;
@@ -3550,8 +3550,8 @@ static int mapscript_map_setProjection(int isWKTProj, php_map_object *php_map,
       php_map->map->extent = rect;
 
       php_map->map->cellsize = msAdjustExtent(&(php_map->map->extent), php_map->map->width,
-                                              php_map->map->height);
-      msCalculateScale(php_map->map->extent, php_map->map->units, php_map->map->width, php_map->map->height,
+                                              php_map->map->height, php_map->map->pixeladjustment);
+      msCalculateScale(php_map->map->extent, php_map->map->units, php_map->map->width, php_map->map->height, php_map->map->pixeladjustment,
                        php_map->map->resolution, &(php_map->map->scaledenom));
 
       if (php_map->extent)

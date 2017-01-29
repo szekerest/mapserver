@@ -133,9 +133,14 @@ imageObj *msPrepareImage(mapObj *map, int allow_nonsquare)
     }
     map->cellsize = (cellsize_x*0.5 + cellsize_y*0.5);
   } else
-    map->cellsize = msAdjustExtent(&(map->extent),map->width,map->height);
+    map->cellsize = msAdjustExtent(&(map->extent),map->width,map->height,map->pixeladjustment);
 
-  status = msCalculateScale(map->extent,map->units,map->width,map->height, map->resolution, &map->scaledenom);
+  if(map->cellsize == 0) {
+    msSetError(MS_MISCERR, "Invalid map extent or image size.", "msAdjustExtent()");
+    return(NULL);
+  }
+
+  status = msCalculateScale(map->extent,map->units,map->width,map->height,map->pixeladjustment, map->resolution, &map->scaledenom);
   if(status != MS_SUCCESS) {
     msFreeImage(image);
     return(NULL);
@@ -943,8 +948,8 @@ int msDrawVectorLayer(mapObj *map, layerObj *layer, imageObj *image)
 #endif
   } else {
     searchrect.minx = searchrect.miny = 0;
-    searchrect.maxx = map->width-1;
-    searchrect.maxy = map->height-1;
+    searchrect.maxx = map->width - map->pixeladjustment;
+    searchrect.maxy = map->height - map->pixeladjustment;
   }
 
   status = msLayerWhichShapes(layer, searchrect, MS_FALSE);

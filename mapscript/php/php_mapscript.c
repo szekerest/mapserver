@@ -826,7 +826,7 @@ PHP_FUNCTION(ms_getScale)
 
   php_geoRefExt = (php_rect_object *)zend_object_store_get_object(zgeoRefExt TSRMLS_CC);
 
-  if (msCalculateScale(*(php_geoRefExt->rect), unit, width, height, resolution, &dfScale) != MS_SUCCESS) {
+  if (msCalculateScale(*(php_geoRefExt->rect), unit, width, height, 1, resolution, &dfScale) != MS_SUCCESS) {
     mapscript_throw_mapserver_exception("" TSRMLS_CC);
     return;
   }

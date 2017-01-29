@@ -243,8 +243,8 @@ static int msContourLayerReadRaster(layerObj *layer, rectObj rect)
         return MS_FAILURE;
       }
 
-      map_cellsize_x = MS_CELLSIZE(mapRect.minx, mapRect.maxx, map->width);
-      map_cellsize_y = MS_CELLSIZE(mapRect.miny, mapRect.maxy, map->height);
+      map_cellsize_x = MS_CELLSIZE(mapRect.minx, mapRect.maxx, map->width, map->pixeladjustment);
+      map_cellsize_y = MS_CELLSIZE(mapRect.miny, mapRect.maxy, map->height, map->pixeladjustment);
 
       /* if the projection failed to project the extent requested, we need to
          calculate the cellsize to preserve the initial map cellsize ratio */
@@ -262,9 +262,9 @@ static int msContourLayerReadRaster(layerObj *layer, rectObj rect)
         }
 
         map_cellsize_x =  MS_CONVERT_UNIT(src_unit, dst_unit,
-                                          MS_CELLSIZE(rect.minx, rect.maxx, map->width)); 
+                                          MS_CELLSIZE(rect.minx, rect.maxx, map->width, map->pixeladjustment)); 
         map_cellsize_y = MS_CONVERT_UNIT(src_unit, dst_unit,
-                                         MS_CELLSIZE(rect.miny, rect.maxy, map->height));
+                                         MS_CELLSIZE(rect.miny, rect.maxy, map->height, map->pixeladjustment));
       }       
     }
 #endif

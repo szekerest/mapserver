@@ -617,7 +617,7 @@ graticuleIntersectionObj *msGraticuleLayerGetIntersectionPoints(mapObj *map,
 
   /*set cellsize if bnot already set*/
   if (map->cellsize == 0)
-    map->cellsize = msAdjustExtent(&(map->extent),map->width,map->height);
+    map->cellsize = msAdjustExtent(&(map->extent),map->width,map->height,map->pixeladjustment);
 
   psValues = (graticuleIntersectionObj *)msSmallMalloc(sizeof(graticuleIntersectionObj));
 
@@ -627,8 +627,8 @@ graticuleIntersectionObj *msGraticuleLayerGetIntersectionPoints(mapObj *map,
     searchrect = map->extent;
   else {
     searchrect.minx = searchrect.miny = 0;
-    searchrect.maxx = map->width-1;
-    searchrect.maxy = map->height-1;
+    searchrect.maxx = map->width - map->pixeladjustment;
+    searchrect.maxy = map->height - map->pixeladjustment;
   }
 
 #ifdef USE_PROJ

@@ -614,10 +614,10 @@ msBuildWMSLayerURL(mapObj *map, layerObj *lp, int nRequestType,
    * ------------------------------------------------------------------ */
   bbox = map->extent;
 
-  bbox.minx -= map->cellsize * 0.5;
-  bbox.maxx += map->cellsize * 0.5;
-  bbox.miny -= map->cellsize * 0.5;
-  bbox.maxy += map->cellsize * 0.5;
+  bbox.minx -= map->cellsize * 0.5 * map->pixeladjustment;
+  bbox.maxx += map->cellsize * 0.5 * map->pixeladjustment;
+  bbox.miny -= map->cellsize * 0.5 * map->pixeladjustment;
+  bbox.maxy += map->cellsize * 0.5 * map->pixeladjustment;
 
   /* -------------------------------------------------------------------- */
   /*      Reproject if needed.                                            */
@@ -793,7 +793,7 @@ msBuildWMSLayerURL(mapObj *map, layerObj *lp, int nRequestType,
     if(map->extent.maxx > map->extent.minx && map->width > 0 && map->height > 0) {
       char szBuf[20] = "";
       double scaledenom;
-      msCalculateScale(map->extent, map->units, map->width, map->height,
+      msCalculateScale(map->extent, map->units, map->width, map->height, map->pixeladjustment,
                      map->resolution, &scaledenom);
       snprintf(szBuf, 20, "%g",scaledenom);
       msSetWMSParamString(psWMSParams, "SCALE", szBuf, MS_FALSE);
@@ -1375,10 +1375,12 @@ int msDrawWMSLayerLow(int nLayerId, httpRequestObj *pasReqInfo,
     if (wldfile && (fp = VSIFOpenL(wldfile, "wt")) != NULL) {
       double dfCellSizeX = MS_CELLSIZE(pasReqInfo[iReq].bbox.minx,
                                        pasReqInfo[iReq].bbox.maxx,
-                                       pasReqInfo[iReq].width);
+                                       pasReqInfo[iReq].width,
+                                       lp->map->pixeladjustment);
       double dfCellSizeY = MS_CELLSIZE(pasReqInfo[iReq].bbox.maxy,
                                        pasReqInfo[iReq].bbox.miny,
-                                       pasReqInfo[iReq].height);
+                                       pasReqInfo[iReq].height,
+                                       lp->map->pixeladjustment);
       char world_text[5000];
 
       sprintf( world_text, "%.12f\n0\n0\n%.12f\n%.12f\n%.12f\n",

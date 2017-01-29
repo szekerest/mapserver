@@ -121,16 +121,20 @@ int setExtent(mapservObj *mapserv)
     case FROMUSERBOX: /* user passed in a map extent */
       break;
     case FROMIMGBOX: /* fully interactive web, most likely with java front end */
-      cellx = MS_CELLSIZE(mapserv->ImgExt.minx, mapserv->ImgExt.maxx, mapserv->ImgCols);
-      celly = MS_CELLSIZE(mapserv->ImgExt.miny, mapserv->ImgExt.maxy, mapserv->ImgRows);
+      cellx = MS_CELLSIZE(mapserv->ImgExt.minx, mapserv->ImgExt.maxx, mapserv->ImgCols,
+                            mapserv->map->pixeladjustment);
+      celly = MS_CELLSIZE(mapserv->ImgExt.miny, mapserv->ImgExt.maxy, mapserv->ImgRows,
+                            mapserv->map->pixeladjustment);
       mapserv->map->extent.minx = MS_IMAGE2MAP_X(mapserv->ImgBox.minx, mapserv->ImgExt.minx, cellx);
       mapserv->map->extent.maxx = MS_IMAGE2MAP_X(mapserv->ImgBox.maxx, mapserv->ImgExt.minx, cellx);
       mapserv->map->extent.maxy = MS_IMAGE2MAP_Y(mapserv->ImgBox.miny, mapserv->ImgExt.maxy, celly); /* y's are flip flopped because img/map coordinate systems are */
       mapserv->map->extent.miny = MS_IMAGE2MAP_Y(mapserv->ImgBox.maxy, mapserv->ImgExt.maxy, celly);
       break;
     case FROMIMGPNT:
-      cellx = MS_CELLSIZE(mapserv->ImgExt.minx, mapserv->ImgExt.maxx, mapserv->ImgCols);
-      celly = MS_CELLSIZE(mapserv->ImgExt.miny, mapserv->ImgExt.maxy, mapserv->ImgRows);
+      cellx = MS_CELLSIZE(mapserv->ImgExt.minx, mapserv->ImgExt.maxx, mapserv->ImgCols,
+                            mapserv->map->pixeladjustment);
+      celly = MS_CELLSIZE(mapserv->ImgExt.miny, mapserv->ImgExt.maxy, mapserv->ImgRows,
+                            mapserv->map->pixeladjustment);
       mapserv->mappnt.x = MS_IMAGE2MAP_X(mapserv->ImgPnt.x, mapserv->ImgExt.minx, cellx);
       mapserv->mappnt.y = MS_IMAGE2MAP_Y(mapserv->ImgPnt.y, mapserv->ImgExt.maxy, celly);
 
@@ -140,8 +144,8 @@ int setExtent(mapservObj *mapserv)
       mapserv->map->extent.maxy = mapserv->mappnt.y + .5*((mapserv->ImgExt.maxy - mapserv->ImgExt.miny)/mapserv->fZoom);
       break;
     case FROMREFPNT:
-      cellx = MS_CELLSIZE(mapserv->map->reference.extent.minx, mapserv->map->reference.extent.maxx, mapserv->map->reference.width);
-      celly = MS_CELLSIZE(mapserv->map->reference.extent.miny, mapserv->map->reference.extent.maxy, mapserv->map->reference.height);
+      cellx = MS_CELLSIZE(mapserv->map->reference.extent.minx, mapserv->map->reference.extent.maxx, mapserv->map->reference.width, mapserv->map->pixeladjustment);
+      celly = MS_CELLSIZE(mapserv->map->reference.extent.miny, mapserv->map->reference.extent.maxy, mapserv->map->reference.height, mapserv->map->pixeladjustment);
       mapserv->mappnt.x = MS_IMAGE2MAP_X(mapserv->RefPnt.x, mapserv->map->reference.extent.minx, cellx);
       mapserv->mappnt.y = MS_IMAGE2MAP_Y(mapserv->RefPnt.y, mapserv->map->reference.extent.maxy, celly);
 
@@ -158,10 +162,10 @@ int setExtent(mapservObj *mapserv)
       break;
     case FROMSCALE:
       cellsize = (mapserv->ScaleDenom/mapserv->map->resolution)/msInchesPerUnit(mapserv->map->units,0); /* user supplied a point and a scale denominator */
-      mapserv->map->extent.minx = mapserv->mappnt.x - cellsize*(mapserv->map->width-1)/2.0;
-      mapserv->map->extent.miny = mapserv->mappnt.y - cellsize*(mapserv->map->height-1)/2.0;
-      mapserv->map->extent.maxx = mapserv->mappnt.x + cellsize*(mapserv->map->width-1)/2.0;
-      mapserv->map->extent.maxy = mapserv->mappnt.y + cellsize*(mapserv->map->height-1)/2.0;
+      mapserv->map->extent.minx = mapserv->mappnt.x - cellsize*(mapserv->map->width - mapserv->map->pixeladjustment)/2.0;
+      mapserv->map->extent.miny = mapserv->mappnt.y - cellsize*(mapserv->map->height - mapserv->map->pixeladjustment)/2.0;
+      mapserv->map->extent.maxx = mapserv->mappnt.x + cellsize*(mapserv->map->width - mapserv->map->pixeladjustment)/2.0;
+      mapserv->map->extent.maxy = mapserv->mappnt.y + cellsize*(mapserv->map->height - mapserv->map->pixeladjustment)/2.0;
       break;
     default: /* use the default in the mapfile if it exists */
       if((mapserv->map->extent.minx == mapserv->map->extent.maxx) && (mapserv->map->extent.miny == mapserv->map->extent.maxy)) {
@@ -185,8 +189,8 @@ int checkWebScale(mapservObj *mapserv)
   int status;
   rectObj work_extent = mapserv->map->extent;
 
-  mapserv->map->cellsize = msAdjustExtent(&(work_extent), mapserv->map->width, mapserv->map->height); /* we do this cause we need a scale */
-  if((status = msCalculateScale(work_extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return status;
+  mapserv->map->cellsize = msAdjustExtent(&(work_extent), mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment); /* we do this cause we need a scale */
+  if((status = msCalculateScale(work_extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return status;
 
   if((mapserv->map->scaledenom < mapserv->map->web.minscaledenom) && (mapserv->map->web.minscaledenom > 0)) {
     if(mapserv->map->web.mintemplate) { /* use the template provided */
@@ -203,8 +207,8 @@ int checkWebScale(mapservObj *mapserv)
       mapserv->mappnt.x = (mapserv->map->extent.maxx + mapserv->map->extent.minx)/2; /* use center of bad extent */
       mapserv->mappnt.y = (mapserv->map->extent.maxy + mapserv->map->extent.miny)/2;
       setExtent(mapserv);
-      mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height);
-      if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return status;
+      mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment);
+      if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return status;
     }
   } else {
     if((mapserv->map->scaledenom > mapserv->map->web.maxscaledenom) && (mapserv->map->web.maxscaledenom > 0)) {
@@ -222,8 +226,8 @@ int checkWebScale(mapservObj *mapserv)
         mapserv->mappnt.x = (mapserv->map->extent.maxx + mapserv->map->extent.minx)/2; /* use center of bad extent */
         mapserv->mappnt.y = (mapserv->map->extent.maxy + mapserv->map->extent.miny)/2;
         setExtent(mapserv);
-        mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height);
-        if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return status;
+        mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent), mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment);
+        if((status = msCalculateScale(mapserv->map->extent, mapserv->map->units, mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment, mapserv->map->resolution, &mapserv->map->scaledenom)) != MS_SUCCESS) return status;
       }
     }
   }
@@ -1600,7 +1604,7 @@ static int processShplabelTag(layerObj *layer, char **line, shapeObj *origshape)
     tShape.line[0].numpoints = 0;
 
     if(layer->map->cellsize <= 0)
-      cellsize = MS_MAX(MS_CELLSIZE(layer->map->extent.minx, layer->map->extent.maxx, layer->map->width), MS_CELLSIZE(layer->map->extent.miny, layer->map->extent.maxy, layer->map->height));
+      cellsize = MS_MAX(MS_CELLSIZE(layer->map->extent.minx, layer->map->extent.maxx, layer->map->width, layer->map->pixeladjustment), MS_CELLSIZE(layer->map->extent.miny, layer->map->extent.maxy, layer->map->height, layer->map->pixeladjustment));
     else
       cellsize = layer->map->cellsize ;
 
@@ -3102,9 +3106,10 @@ char *generateLegendTemplate(mapservObj *mapserv)
 
   mapserv->map->cellsize = msAdjustExtent(&(mapserv->map->extent),
                                           mapserv->map->width,
-                                          mapserv->map->height);
+                                          mapserv->map->height,
+                                          mapserv->map->pixeladjustment);
   if(msCalculateScale(mapserv->map->extent, mapserv->map->units,
-                      mapserv->map->width, mapserv->map->height,
+                      mapserv->map->width, mapserv->map->height, mapserv->map->pixeladjustment,
                       mapserv->map->resolution, &mapserv->map->scaledenom) != MS_SUCCESS) {
     if(pszResult)
       free(pszResult);

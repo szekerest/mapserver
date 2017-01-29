@@ -6070,6 +6070,7 @@ int initMap(mapObj *map)
 
   map->units = MS_METERS;
   map->cellsize = 0;
+  map->pixeladjustment = 1;
   map->shapepath = NULL;
   map->mappath = NULL;
 
@@ -6305,6 +6306,7 @@ static void writeMap(FILE *stream, int indent, mapObj *map)
   writeNumber(stream, indent, "MAXSIZE", MS_MAXIMAGESIZE_DEFAULT, map->maxsize);
   writeString(stream, indent, "NAME", NULL, map->name);
   writeNumber(stream, indent, "RESOLUTION", 72.0, map->resolution);
+  writeNumber(stream, indent, "PIXELADJUSTMENT", 1, map->pixeladjustment);
   writeString(stream, indent, "SHAPEPATH", NULL, map->shapepath);
   writeDimension(stream, indent, "SIZE", map->width, map->height, NULL, NULL);
   writeKeyword(stream, indent, "STATUS", map->status, 2, MS_ON, "ON", MS_OFF, "OFF");
@@ -6546,6 +6548,9 @@ static int loadMapInternal(mapObj *map)
         break;
       case(DEFRESOLUTION):
         if(getDouble(&(map->defresolution)) == -1) return MS_FAILURE;
+        break;
+       case(PIXELADJUSTMENT):
+        if(getInteger(&(map->pixeladjustment)) == -1) return MS_FAILURE;
         break;
       case(SCALE):
       case(SCALEDENOM):
@@ -6967,6 +6972,13 @@ int msUpdateMapFromURL(mapObj *map, char *variable, char *string)
           msyylex();
 
           if(getDouble(&(map->defresolution)) == -1) break;
+          break;
+        case(PIXELADJUSTMENT):
+          msyystate = MS_TOKENIZE_URL_STRING;
+          msyystring = string;
+          msyylex();
+
+          if(getInteger(&(map->pixeladjustment)) == -1) break;
           break;
         case(SCALEBAR):
           return msUpdateScalebarFromString(&(map->scalebar), string, MS_TRUE);

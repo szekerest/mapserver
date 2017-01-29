@@ -757,20 +757,20 @@ int msAdjustImage(rectObj rect, int *width, int *height)
 /*
 ** Make sure extent fits image window to be created. Returns cellsize of output image.
 */
-double msAdjustExtent(rectObj *rect, int width, int height)
+double msAdjustExtent(rectObj *rect, int width, int height, int pixeladjustment)
 {
   double cellsize, ox, oy;
 
-  if(width == 1 || height == 1)
+  if(width == pixeladjustment || height == pixeladjustment)
     return 0;
 
-  cellsize = MS_MAX(MS_CELLSIZE(rect->minx, rect->maxx, width), MS_CELLSIZE(rect->miny, rect->maxy, height));
+  cellsize = MS_MAX(MS_CELLSIZE(rect->minx, rect->maxx, width, pixeladjustment), MS_CELLSIZE(rect->miny, rect->maxy, height, pixeladjustment));
 
   if(cellsize <= 0) /* avoid division by zero errors */
     return(0);
 
-  ox = MS_MAX(((width-1) - (rect->maxx - rect->minx)/cellsize)/2,0); /* these were width-1 and height-1 */
-  oy = MS_MAX(((height-1) - (rect->maxy - rect->miny)/cellsize)/2,0);
+  ox = MS_MAX(((width - pixeladjustment) - (rect->maxx - rect->minx)/cellsize)/2,0); /* these were width-1 and height-1 */
+  oy = MS_MAX(((height - pixeladjustment) - (rect->maxy - rect->miny)/cellsize)/2,0);
 
   rect->minx = rect->minx - ox*cellsize;
   rect->miny = rect->miny - oy*cellsize;

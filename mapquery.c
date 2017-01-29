@@ -939,7 +939,7 @@ int msQueryByRect(mapObj *map)
       layer_tolerance = lp->tolerance;
 
       if(lp->toleranceunits == MS_PIXELS)
-        tolerance = layer_tolerance * msAdjustExtent(&(map->extent), map->width, map->height);
+        tolerance = layer_tolerance * msAdjustExtent(&(map->extent), map->width, map->height, map->pixeladjustment);
       else
         tolerance = layer_tolerance * (msInchesPerUnit(lp->toleranceunits,0)/msInchesPerUnit(map->units,0));
 
@@ -1199,7 +1199,7 @@ int msQueryByFeatures(mapObj *map)
       layer_tolerance = lp->tolerance;
 
     if(lp->toleranceunits == MS_PIXELS)
-      tolerance = layer_tolerance * msAdjustExtent(&(map->extent), map->width, map->height);
+      tolerance = layer_tolerance * msAdjustExtent(&(map->extent), map->width, map->height, map->pixeladjustment);
     else
       tolerance = layer_tolerance * (msInchesPerUnit(lp->toleranceunits,0)/msInchesPerUnit(map->units,0));
 
@@ -1508,8 +1508,10 @@ int msQueryByPoint(mapObj *map)
 
     if(map->query.buffer <= 0) { /* use layer tolerance */
       if(lp->toleranceunits == MS_PIXELS)
-        t = layer_tolerance * MS_MAX(MS_CELLSIZE(map->extent.minx, map->extent.maxx, map->width),
-                                     MS_CELLSIZE(map->extent.miny, map->extent.maxy, map->height));
+        t = layer_tolerance * MS_MAX(MS_CELLSIZE(map->extent.minx, map->extent.maxx, map->width, 
+                                            map->pixeladjustment),
+                                     MS_CELLSIZE(map->extent.miny, map->extent.maxy, map->height, 
+                                            map->pixeladjustment));
       else
         t = layer_tolerance * (msInchesPerUnit(lp->toleranceunits,0)/msInchesPerUnit(map->units,0));
     } else /* use buffer distance */
@@ -1730,7 +1732,7 @@ int msQueryByShape(mapObj *map)
       layer_tolerance = lp->tolerance;
 
     if(lp->toleranceunits == MS_PIXELS)
-      tolerance = layer_tolerance * msAdjustExtent(&(map->extent), map->width, map->height);
+      tolerance = layer_tolerance * msAdjustExtent(&(map->extent), map->width, map->height, map->pixeladjustment);
     else
       tolerance = layer_tolerance * (msInchesPerUnit(lp->toleranceunits,0)/msInchesPerUnit(map->units,0));
 

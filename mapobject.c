@@ -279,12 +279,12 @@ int msMapSetExtent( mapObj *map,
   }
 
   map->cellsize = msAdjustExtent(&(map->extent), map->width,
-                                 map->height);
+                                 map->height, map->pixeladjustment);
 
   /* if the map size is also set, recompute scale, ignore errors? */
   if( map->width != -1 || map->height != -1 )
     msCalculateScale(map->extent, map->units, map->width, map->height,
-                     map->resolution, &(map->scaledenom));
+                     map->pixeladjustment, map->resolution, &(map->scaledenom));
 
   return msMapComputeGeotransform( map );
 }
@@ -410,17 +410,17 @@ int msMapComputeGeotransform( mapObj * map )
   ** edges as is expected in a geotransform.
   */
   map->gt.geotransform[1] =
-    cos(rot_angle) * geo_width / (map->width-1);
+    cos(rot_angle) * geo_width / (map->width - map->pixeladjustment);
   map->gt.geotransform[2] =
-    sin(rot_angle) * geo_height / (map->height-1);
+    sin(rot_angle) * geo_height / (map->height - map->pixeladjustment);
   map->gt.geotransform[0] = center_x
                             - (map->width * 0.5) * map->gt.geotransform[1]
                             - (map->height * 0.5) * map->gt.geotransform[2];
 
   map->gt.geotransform[4] =
-    sin(rot_angle) * geo_width / (map->width-1);
+    sin(rot_angle) * geo_width / (map->width - map->pixeladjustment);
   map->gt.geotransform[5] =
-    - cos(rot_angle) * geo_height / (map->height-1);
+    - cos(rot_angle) * geo_height / (map->height - map->pixeladjustment);
   map->gt.geotransform[3] = center_y
                             - (map->width * 0.5) * map->gt.geotransform[4]
                             - (map->height * 0.5) * map->gt.geotransform[5];
@@ -511,7 +511,7 @@ int msMapRestoreRealExtent( mapObj *map )
 {
   map->projection.gt.need_geotransform = MS_FALSE;
   map->extent = map->saved_extent;
-  map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height);
+  map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height, map->pixeladjustment);
 
   return MS_SUCCESS;
 }

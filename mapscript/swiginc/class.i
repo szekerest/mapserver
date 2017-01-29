@@ -178,7 +178,7 @@
   
   int drawLegendIcon(mapObj *map, layerObj *layer, int width, int height, imageObj *dstImage, int dstX, int dstY) {    
     if(layer->sizeunits != MS_PIXELS) {
-      map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height);
+      map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height, map->pixeladjustment);
       layer->scalefactor = (msInchesPerUnit(layer->sizeunits,0)/msInchesPerUnit(map->units,0)) / map->cellsize;
     }
     else

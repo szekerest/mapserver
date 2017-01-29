@@ -102,8 +102,8 @@
         /*   if the min and max scale are set in the map file, we will  */
         /*   use them to test before zooming.                           */
         /* ------------------------------------------------------------ */
-        msAdjustExtent(&oNewGeorefExt, self->width, self->height);
-        msCalculateScale(oNewGeorefExt, self->units, self->width, self->height, self->resolution, &dfNewScale);
+        msAdjustExtent(&oNewGeorefExt, self->width, self->height, self->pixeladjustment);
+        msCalculateScale(oNewGeorefExt, self->units, self->width, self->height, self->pixeladjustment, self->resolution, &dfNewScale);
     
         if (self->web.maxscaledenom > 0) {
             if (zoomfactor < 0 && dfNewScale > self->web.maxscaledenom) {
@@ -171,7 +171,7 @@
         self->extent.maxx = oNewGeorefExt.maxx;
         self->extent.maxy = oNewGeorefExt.maxy;
     
-        self->cellsize = msAdjustExtent(&(self->extent), self->width, self->height);      
+        self->cellsize = msAdjustExtent(&(self->extent), self->width, self->height, self->pixeladjustment);      
         dfDeltaX = self->extent.maxx - self->extent.minx;
         dfDeltaY = self->extent.maxy - self->extent.miny; 
 
@@ -194,7 +194,7 @@
             }
         }
     
-        msCalculateScale(self->extent, self->units, self->width, self->height, self->resolution, &(self->scaledenom));
+        msCalculateScale(self->extent, self->units, self->width, self->height, self->pixeladjustment, self->resolution, &(self->scaledenom));
 
         return MS_SUCCESS;
     }
@@ -269,13 +269,13 @@
         oNewGeorefExt.miny = Pix2Georef((int)poPixRect->miny, 0, height, poGeorefExt->miny, poGeorefExt->maxy, 1); 
         oNewGeorefExt.maxy = Pix2Georef((int)poPixRect->maxy, 0, height, poGeorefExt->miny, poGeorefExt->maxy, 1); 
 
-        msAdjustExtent(&oNewGeorefExt, self->width, self->height);
+        msAdjustExtent(&oNewGeorefExt, self->width, self->height, self->pixeladjustment);
 
         /* ------------------------------------------------------------ */
         /*   if the min and max scale are set in the map file, we will  */
         /*   use them to test before setting extents.                   */
         /* ------------------------------------------------------------ */
-        msCalculateScale(oNewGeorefExt, self->units, self->width, self->height, self->resolution, &dfNewScale);
+        msCalculateScale(oNewGeorefExt, self->units, self->width, self->height, self->pixeladjustment, self->resolution, &dfNewScale);
 
         if (self->web.maxscaledenom > 0 &&  dfNewScale > self->web.maxscaledenom)
             return MS_FAILURE;
@@ -335,7 +335,7 @@
         self->extent.maxx = oNewGeorefExt.maxx;
         self->extent.maxy = oNewGeorefExt.maxy;
 
-        self->cellsize = msAdjustExtent(&(self->extent), self->width, self->height);    
+        self->cellsize = msAdjustExtent(&(self->extent), self->width, self->height, self->pixeladjustment);    
         dfDeltaX = self->extent.maxx - self->extent.minx;
         dfDeltaY = self->extent.maxy - self->extent.miny; 
 
@@ -358,7 +358,7 @@
             }
         }
 
-        msCalculateScale(self->extent, self->units, self->width,  self->height, self->resolution, &(self->scaledenom));
+        msCalculateScale(self->extent, self->units, self->width,  self->height, self->pixeladjustment, self->resolution, &(self->scaledenom));
 
         return MS_SUCCESS;
     }
@@ -457,7 +457,7 @@
         /* ------------------------------------------------------------ */
         /*   get current scale.                                         */
         /* ------------------------------------------------------------ */
-        msCalculateScale(*poGeorefExt, self->units, self->width, self->height, self->resolution, &dfCurrentScale);
+        msCalculateScale(*poGeorefExt, self->units, self->width, self->height, self->pixeladjustment, self->resolution, &dfCurrentScale);
 
         /* ------------------------------------------------------------ *
          *   if the min and max scale are set in the map file, we will  *
@@ -467,8 +467,8 @@
          *   If the current scale is > newscale we zoom in; else it is
          *   a zoom out.
          * ------------------------------------------------------------ */
-        msAdjustExtent(&oNewGeorefExt, self->width, self->height);
-        msCalculateScale(oNewGeorefExt, self->units, self->width, self->height, self->resolution, &dfNewScale);
+        msAdjustExtent(&oNewGeorefExt, self->width, self->height, self->pixeladjustment);
+        msCalculateScale(oNewGeorefExt, self->units, self->width, self->height, self->pixeladjustment, self->resolution, &dfNewScale);
 
         if (self->web.maxscaledenom > 0) {
             if (dfCurrentScale < dfNewScale && dfNewScale >  self->web.maxscaledenom) {
@@ -531,7 +531,7 @@
         self->extent.maxx = oNewGeorefExt.maxx;
         self->extent.maxy = oNewGeorefExt.maxy;
     
-        self->cellsize = msAdjustExtent(&(self->extent), self->width, self->height);    
+        self->cellsize = msAdjustExtent(&(self->extent), self->width, self->height, self->pixeladjustment);    
         dfDeltaX = self->extent.maxx - self->extent.minx;
         dfDeltaY = self->extent.maxy - self->extent.miny; 
 
@@ -554,7 +554,7 @@
             }
         }
 
-        msCalculateScale(self->extent, self->units, self->width, self->height, self->resolution, &(self->scaledenom));
+        msCalculateScale(self->extent, self->units, self->width, self->height, self->pixeladjustment, self->resolution, &(self->scaledenom));
 
         return MS_SUCCESS;
     }

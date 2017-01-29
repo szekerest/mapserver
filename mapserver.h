@@ -406,8 +406,10 @@ extern "C" {
 
 #define MS_RENDERER_PLUGIN(format) ((format)->renderer > MS_RENDER_WITH_PLUGIN)
 
-#define MS_CELLSIZE(min,max,d) (((max) - (min))/((d)-1)) /* where min/max are from an MapServer pixel center-to-pixel center extent */
-#define MS_OWS_CELLSIZE(min,max,d) (((max) - (min))/(d)) /* where min/max are from an OGC pixel outside edge-to-pixel outside edge extent */
+/* where min/max are from the MapServer extent
+   d is the image width or height in pixels
+   a is the pixel adjustment 1 -> center-of-pixel 2 -> edge-of-pixel */
+#define MS_CELLSIZE(min,max,d,a) ((max - min)/(d-a))
 #define MS_MAP2IMAGE_X(x,minx,cx) (MS_NINT(((x) - (minx))/(cx)))
 #define MS_MAP2IMAGE_Y(y,maxy,cy) (MS_NINT(((maxy) - (y))/(cy)))
 #define MS_IMAGE2MAP_X(x,minx,cx) ((minx) + (cx)*(x))
@@ -1853,6 +1855,7 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
     rectObj extent; /* map extent array */
     double cellsize; /* in map units */
 
+    int pixeladjustment; /* 0 or 1 (default) */
 
 #ifndef SWIG
     geotransformObj gt; /* rotation / geotransform */
@@ -2130,7 +2133,8 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
   MS_DLL_EXPORT void msGDALInitialize(void);
 
   MS_DLL_EXPORT imageObj *msDrawScalebar(mapObj *map); /* in mapscale.c */
-  MS_DLL_EXPORT int msCalculateScale(rectObj extent, int units, int width, int height, double resolution, double *scaledenom);
+  MS_DLL_EXPORT int msCalculateScale(rectObj extent, int units, int width, int height,  
+      int pixeladjustment, double resolution, double *scaledenom);
   MS_DLL_EXPORT double GetDeltaExtentsUsingScale(double scale, int units, double centerLat, int width, double resolution);
   MS_DLL_EXPORT double Pix2Georef(int nPixPos, int nPixMin, int nPixMax, double dfGeoMin, double dfGeoMax, int bULisYOrig);
   MS_DLL_EXPORT double Pix2LayerGeoref(mapObj *map, layerObj *layer, int value);
@@ -2635,7 +2639,7 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
   MS_DLL_EXPORT int msAdjustImage(rectObj rect, int *width, int *height);
   MS_DLL_EXPORT char *msEvalTextExpression(expressionObj *expr, shapeObj *shape);
   MS_DLL_EXPORT char *msEvalTextExpressionJSonEscape(expressionObj *expr, shapeObj *shape);
-  MS_DLL_EXPORT double msAdjustExtent(rectObj *rect, int width, int height);
+  MS_DLL_EXPORT double msAdjustExtent(rectObj *rect, int width, int height, int pixeladjustment);
   MS_DLL_EXPORT int msConstrainExtent(rectObj *bounds, rectObj *rect, double overlay);
   MS_DLL_EXPORT int *msGetLayersIndexByGroup(mapObj *map, char *groupname, int *nCount);
   MS_DLL_EXPORT unsigned char *msSaveImageBuffer(imageObj* image, int *size_ptr, outputFormatObj *format);

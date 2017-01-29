@@ -286,8 +286,8 @@ int msHitTestLayer(mapObj *map, layerObj *layer, layer_hittest *hittest) {
 }
 int msHitTestMap(mapObj *map, map_hittest *hittest) {
   int i,status;
-  map->cellsize = msAdjustExtent(&(map->extent),map->width,map->height);
-  status = msCalculateScale(map->extent,map->units,map->width,map->height, map->resolution, &map->scaledenom);
+  map->cellsize = msAdjustExtent(&(map->extent),map->width,map->height,map->pixeladjustment);
+  status = msCalculateScale(map->extent,map->units,map->width,map->height,map->pixeladjustment, map->resolution, &map->scaledenom);
   if(status != MS_SUCCESS) {
     return MS_FAILURE;
   }

@@ -898,7 +898,7 @@ int msRasterQueryByShape(mapObj *map, layerObj *layer, shapeObj *selectshape)
 
   if(layer->toleranceunits == MS_PIXELS)
     tolerance = tolerance
-                * msAdjustExtent(&(map->extent), map->width, map->height);
+                * msAdjustExtent(&(map->extent), map->width, map->height, map->pixeladjustment);
   else
     tolerance = tolerance
                 * (msInchesPerUnit(layer->toleranceunits,0)
@@ -964,7 +964,7 @@ int msRasterQueryByPoint(mapObj *map, layerObj *layer, int mode, pointObj p,
 
     if(layer->toleranceunits == MS_PIXELS)
       buffer = layer_tolerance
-               * msAdjustExtent(&(map->extent), map->width, map->height);
+               * msAdjustExtent(&(map->extent), map->width, map->height, map->pixeladjustment);
     else
       buffer = layer_tolerance
                * (msInchesPerUnit(layer->toleranceunits,0)
