@@ -245,6 +245,11 @@ imageObj *msDrawScalebar(mapObj *map)
 
   sy = MS_NINT((2*vMargin) + MS_NINT(VSPACING*fontHeight) + fontHeight + scalebarHeight - vSlop);
 
+  /* For embed scalebars set scalebar width to the content width */
+  if (map->scalebar.status == MS_EMBED) {
+      scalebarWidth = sx + 2*hMargin;
+  }
+
   /*Ensure we have an image format representing the options for the scalebar.*/
   msApplyOutputFormat( &format, map->outputformat,
                        map->scalebar.transparent,
