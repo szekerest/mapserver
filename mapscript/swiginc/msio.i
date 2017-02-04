@@ -44,6 +44,7 @@ void msIO_stripStdoutBufferContentHeaders(void);
 
 const char *msIO_getStdoutBufferString(void);
 gdBuffer msIO_getStdoutBufferBytes(void);
+void msIO_installStdoutToFile(const char* filename);
 
 #ifdef SWIGPYTHON
 %newobject msIO_getAndStripStdoutBufferMimeHeaders;
@@ -51,6 +52,34 @@ hashTableObj* msIO_getAndStripStdoutBufferMimeHeaders(void);
 #endif
 
 %{
+
+void msIO_installStdoutToFile(const char* filename) {
+    msIOContext *ctx = msIO_getHandler( (FILE *) "stdout" );
+
+    if( ctx == NULL || ctx->write_channel == MS_FALSE)
+    {
+	    msSetError( MS_MISCERR, "Can't identify msIO buffer.",
+                    "msIO_installStdoutToFile" );
+	    return;
+    }
+
+    if ( ctx->cbData != NULL && ctx->cbData != stdout )
+        fclose(ctx->cbData);
+
+    if (filename) {
+        ctx->cbData = fopen(filename, "a");
+        if (!ctx->cbData) {
+            ctx->cbData = stdout;
+            msSetError( MS_MISCERR, "Can't open file.",
+                        "msIO_installStdoutToFile" );
+	        return;
+        }
+    }
+    else {
+        ctx->cbData = stdout;
+    }
+}
+
 
 const char *msIO_getStdoutBufferString() {
     msIOContext *ctx = msIO_getHandler( (FILE *) "stdout" );
