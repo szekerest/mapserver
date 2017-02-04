@@ -45,6 +45,7 @@ void msIO_stripStdoutBufferContentHeaders(void);
 const char *msIO_getStdoutBufferString(void);
 gdBuffer msIO_getStdoutBufferBytes(void);
 void msIO_installStdoutToFile(const char* filename);
+void msIO_setHeaderEnabled(int bFlag);
 
 #ifdef SWIGPYTHON
 %newobject msIO_getAndStripStdoutBufferMimeHeaders;
