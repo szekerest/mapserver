@@ -840,8 +840,13 @@ int msEmbedLegend(mapObj *map, imageObj *img)
 
   if(!MS_RENDERER_PLUGIN(map->outputformat) || !MS_MAP_RENDERER(map)->supports_pixel_buffer) {
     imageType = msStrdup(map->imagetype); /* save format */
-    if MS_DRIVER_CAIRO(map->outputformat)
+    if MS_DRIVER_CAIRO(map->outputformat) {
+#ifdef USE_SVG_CAIRO
+      map->outputformat = msSelectOutputFormat( map, "svg" );
+#else
       map->outputformat = msSelectOutputFormat( map, "cairopng" );
+#endif
+    }
     else
       map->outputformat = msSelectOutputFormat( map, "png" );
     
@@ -862,21 +867,44 @@ int msEmbedLegend(mapObj *map, imageObj *img)
   }
 
   /* copy renderered legend image into symbol */
-  legendSymbol->pixmap_buffer = calloc(1,sizeof(rasterBufferObj));
-  MS_CHECK_ALLOC(legendSymbol->pixmap_buffer, sizeof(rasterBufferObj), MS_FAILURE);
+  if (!strcasecmp(image->format->driver,"cairo/svg")) {
+    int size;
+    char* svg_text;
+    legendSymbol->type = MS_SYMBOL_SVG;
+    svg_text = msSaveImageBuffer(image, &size, map->outputformat);
+    msFreeImage( image );
+    if (!svg_text)
+      return MS_FAILURE;
+    msFree(legendSymbol->full_pixmap_path);
+    legendSymbol->full_pixmap_path = msSmallMalloc(size + 1);
+    memcpy(legendSymbol->full_pixmap_path, svg_text, size);
+    legendSymbol->full_pixmap_path[size] = 0;
+    msFree(svg_text);
+    if(MS_SUCCESS != msPreloadSVGSymbol(legendSymbol))
+      return MS_FAILURE;
+  }
+  else {
+    legendSymbol->pixmap_buffer = calloc(1,sizeof(rasterBufferObj));
+    MS_CHECK_ALLOC(legendSymbol->pixmap_buffer, sizeof(rasterBufferObj), MS_FAILURE);
 
-  if(MS_SUCCESS != renderer->getRasterBufferCopy(image,legendSymbol->pixmap_buffer))
-    return MS_FAILURE;
+    if(MS_SUCCESS != renderer->getRasterBufferCopy(image,legendSymbol->pixmap_buffer)) {
+      msFreeImage( image );
+      return MS_FAILURE;
+    }
+
+    msFreeImage( image );
+
+    if(!legendSymbol->pixmap_buffer) return(MS_FAILURE); /* something went wrong creating scalebar */
+
+    legendSymbol->type = MS_SYMBOL_PIXMAP; /* intialize a few things */
+    legendSymbol->sizex = legendSymbol->pixmap_buffer->width;
+    legendSymbol->sizey = legendSymbol->pixmap_buffer->height;
+  }
+
   legendSymbol->renderer = renderer;
+  legendSymbol->renderer_free_func = renderer->freeSymbol;
 
-  msFreeImage( image );
-
-  if(!legendSymbol->pixmap_buffer) return(MS_FAILURE); /* something went wrong creating scalebar */
-
-  legendSymbol->type = MS_SYMBOL_PIXMAP; /* intialize a few things */
   legendSymbol->name = msStrdup("legend");
-  legendSymbol->sizex = legendSymbol->pixmap_buffer->width;
-  legendSymbol->sizey = legendSymbol->pixmap_buffer->height;
 
   /* I'm not too sure this test is sufficient ... NFW. */
   /* if(map->legend.transparent == MS_ON) */

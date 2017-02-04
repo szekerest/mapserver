@@ -189,7 +189,7 @@ imageObj *msDrawScalebar(mapObj *map)
   }
 
   renderer = MS_MAP_RENDERER(map);
-  if(!renderer || !MS_MAP_RENDERER(map)->supports_pixel_buffer) {
+  if(!renderer || !(MS_MAP_RENDERER(map)->supports_pixel_buffer || MS_MAP_RENDERER(map)->supports_svg)) {
     msSetError(MS_MISCERR, "Outputformat not supported for scalebar", "msDrawScalebar()");
     return(NULL);
   }
@@ -422,8 +422,13 @@ int msEmbedScalebar(mapObj *map, imageObj *img)
 
   if(!MS_RENDERER_PLUGIN(map->outputformat) || !MS_MAP_RENDERER(map)->supports_pixel_buffer) {
     imageType = msStrdup(map->imagetype); /* save format */
-    if MS_DRIVER_CAIRO(map->outputformat)
+    if MS_DRIVER_CAIRO(map->outputformat) {
+#ifdef USE_SVG_CAIRO
+      map->outputformat = msSelectOutputFormat( map, "svg" );
+#else
       map->outputformat = msSelectOutputFormat( map, "cairopng" );
+#endif
+    }
     else
       map->outputformat = msSelectOutputFormat( map, "png" );
     
@@ -441,17 +446,38 @@ int msEmbedScalebar(mapObj *map, imageObj *img)
   if(!image) {
     return MS_FAILURE;
   }
-  embededSymbol->pixmap_buffer = calloc(1,sizeof(rasterBufferObj));
-  MS_CHECK_ALLOC(embededSymbol->pixmap_buffer, sizeof(rasterBufferObj), MS_FAILURE);
-
-  if(MS_SUCCESS != renderer->getRasterBufferCopy(image,embededSymbol->pixmap_buffer)) {
-    return MS_FAILURE;
-  }
-
-  embededSymbol->type = MS_SYMBOL_PIXMAP; /* intialize a few things */
+  /* intialize a few things */
   embededSymbol->name = msStrdup("scalebar");
-  embededSymbol->sizex = embededSymbol->pixmap_buffer->width;
-  embededSymbol->sizey = embededSymbol->pixmap_buffer->height;
+
+  if (MS_MAP_RENDERER(map)->supports_svg) {
+    int size;
+    char* svg_text;
+    embededSymbol->type = MS_SYMBOL_SVG;
+    svg_text = msSaveImageBuffer(image, &size, map->outputformat);
+    msFreeImage( image );
+    if (!svg_text)
+      return MS_FAILURE;
+    msFree(embededSymbol->full_pixmap_path);
+    embededSymbol->full_pixmap_path = msSmallMalloc(size + 1);
+    memcpy(embededSymbol->full_pixmap_path, svg_text, size);
+    embededSymbol->full_pixmap_path[size] = 0;
+    msFree(svg_text);
+    if(MS_SUCCESS != msPreloadSVGSymbol(embededSymbol))
+      return MS_FAILURE;
+  }
+  else {
+    embededSymbol->pixmap_buffer = calloc(1,sizeof(rasterBufferObj));
+    MS_CHECK_ALLOC(embededSymbol->pixmap_buffer, sizeof(rasterBufferObj), MS_FAILURE);
+
+    if(MS_SUCCESS != renderer->getRasterBufferCopy(image,embededSymbol->pixmap_buffer)) {
+      msFreeImage( image );
+      return MS_FAILURE;
+    }
+    msFreeImage( image );
+    embededSymbol->type = MS_SYMBOL_PIXMAP;
+    embededSymbol->sizex = embededSymbol->pixmap_buffer->width;
+    embededSymbol->sizey = embededSymbol->pixmap_buffer->height;
+  }
   if(map->scalebar.transparent) {
     embededSymbol->transparent = MS_TRUE;
     embededSymbol->transparentcolor = 0;
@@ -459,28 +485,28 @@ int msEmbedScalebar(mapObj *map, imageObj *img)
 
   switch(map->scalebar.position) {
     case(MS_LL):
-      point.x = MS_NINT(embededSymbol->pixmap_buffer->width/2.0);
-      point.y = map->height - MS_NINT(embededSymbol->pixmap_buffer->height/2.0);
+      point.x = MS_NINT(embededSymbol->sizex/2.0);
+      point.y = map->height - MS_NINT(embededSymbol->sizey/2.0);
       break;
     case(MS_LR):
-      point.x = map->width - MS_NINT(embededSymbol->pixmap_buffer->width/2.0);
-      point.y = map->height - MS_NINT(embededSymbol->pixmap_buffer->height/2.0);
+      point.x = map->width - MS_NINT(embededSymbol->sizex/2.0);
+      point.y = map->height - MS_NINT(embededSymbol->sizey/2.0);
       break;
     case(MS_LC):
       point.x = MS_NINT(map->width/2.0);
-      point.y = map->height - MS_NINT(embededSymbol->pixmap_buffer->height/2.0);
+      point.y = map->height - MS_NINT(embededSymbol->sizey/2.0);
       break;
     case(MS_UR):
-      point.x = map->width - MS_NINT(embededSymbol->pixmap_buffer->width/2.0);
-      point.y = MS_NINT(embededSymbol->pixmap_buffer->height/2.0);
+      point.x = map->width - MS_NINT(embededSymbol->sizex/2.0);
+      point.y = MS_NINT(embededSymbol->sizey/2.0);
       break;
     case(MS_UL):
-      point.x = MS_NINT(embededSymbol->pixmap_buffer->width/2.0);
-      point.y = MS_NINT(embededSymbol->pixmap_buffer->height/2.0);
+      point.x = MS_NINT(embededSymbol->sizex/2.0);
+      point.y = MS_NINT(embededSymbol->sizey/2.0);
       break;
     case(MS_UC):
       point.x = MS_NINT(map->width/2.0);
-      point.y = MS_NINT(embededSymbol->pixmap_buffer->height/2.0);
+      point.y = MS_NINT(embededSymbol->sizey/2.0);
       break;
   }
 
@@ -540,7 +566,6 @@ embed_cleanup:
   /* Mark layer as deleted so that it doesn't interfere with html legends or with saving maps */
   GET_LAYER(map, l)->status = MS_DELETE;
 
-  msFreeImage( image );
   return status;
 }
 
