@@ -893,7 +893,13 @@ int msPreloadImageSymbol(rendererVTableObj *renderer, symbolObj *symbol)
     symbol->pixmap_buffer = NULL;
     return MS_FAILURE;
   }
-  symbol->renderer = renderer;
+  if (symbol->renderer != renderer) {
+    symbol->renderer = renderer;
+    if (symbol->renderer_free_func) 
+      symbol->renderer_free_func(symbol);
+
+    symbol->renderer_free_func = renderer->freeSymbol;
+  }
   symbol->sizex = symbol->pixmap_buffer->width;
   symbol->sizey = symbol->pixmap_buffer->height;
   return MS_SUCCESS;
