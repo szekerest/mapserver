@@ -314,6 +314,8 @@ static SWIG_CSharpByteArrayHelperCallback SWIG_csharp_bytearray_callback = NULL;
 %csmethodmodifiers processLegendTemplate "private";
 %csmethodmodifiers processQueryTemplate "private";
 
+%typemap(csinterfaces) mapObj "IDisposable, System.Runtime.Serialization.ISerializable"; 
+%typemap(csattributes) mapObj  "[Serializable]"
 %typemap(cscode) mapObj, struct mapObj %{
   public string processTemplate(int bGenerateImages, string[] names, string[] values)
   {
@@ -334,6 +336,18 @@ static SWIG_CSharpByteArrayHelperCallback SWIG_csharp_bytearray_callback = NULL;
 	if (names.Length != values.Length)
 	    throw new ArgumentException("Invalid array length specified!");
 	return processQueryTemplate(names, values, values.Length);
+  }
+  
+  public mapObj(
+      System.Runtime.Serialization.SerializationInfo info
+      , System.Runtime.Serialization.StreamingContext context) : this(info.GetString("mapText"), 1)
+  {       
+        //this constructor is needed for ISerializable interface
+  }
+  
+  public void GetObjectData(System.Runtime.Serialization.SerializationInfo info, System.Runtime.Serialization.StreamingContext context) 
+  {    
+        info.AddValue( "mapText", this.convertToString() );        
   }
 %}
 

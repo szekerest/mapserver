@@ -41,6 +41,13 @@
         }      
     }
 
+#ifdef SWIGCSHARP      
+    mapObj(char *mapText, int isMapText /*used as signature only to differentiate this constructor from efault constructor*/ ) 
+    {
+        return msLoadMapFromString(mapText, NULL);
+    }
+#endif
+
     ~mapObj() 
     {
         msFreeMap(self);
@@ -203,7 +210,17 @@
 
   %newobject draw;
   imageObj *draw() {
+#if defined(WIN32) && defined(SWIGCSHARP)
+    __try {
     return msDrawMap(self, MS_FALSE);
+    }    
+    __except(1 /*EXCEPTION_EXECUTE_HANDLER, catch every exception so it doesn't crash IIS*/) {  
+        msSetError(MS_IMGERR, "Unhandled exception in drawing map image 0x%08x", "msDrawMap()", GetExceptionCode());
+    }
+#else    
+    return msDrawMap(self, MS_FALSE);
+#endif    
+
   }
 
   %newobject drawQuery;
