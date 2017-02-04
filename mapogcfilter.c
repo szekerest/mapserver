@@ -2213,6 +2213,7 @@ char *FLTGetSQLExpression(FilterEncodingNode *psFilterNode, layerObj *lp)
         if (tokens && nTokens > 0) {
           for (i=0; i<nTokens; i++) {
             char *pszEscapedStr = NULL;
+            const char* pszOFGType;
             const char* pszId = tokens[i];
             const char* pszDot = strchr(pszId, '.');
             if( pszDot )
@@ -2221,7 +2222,11 @@ char *FLTGetSQLExpression(FilterEncodingNode *psFilterNode, layerObj *lp)
             if (strlen(pszId) <= 0)
               continue;
 
-            if (FLTIsNumeric(pszId) == MS_FALSE)
+            snprintf(szTmp, sizeof(szTmp), "%s_type",  pszAttribute);
+            pszOFGType = msOWSLookupMetadata(&(lp->metadata), "OFG", szTmp);
+            if (pszOFGType!= NULL && strcasecmp(pszOFGType, "Character") == 0)
+              bString = 1;
+            else if (FLTIsNumeric((tokens[i])) == MS_FALSE)
               bString = 1;
 
             pszEscapedStr = msLayerEscapeSQLParam(lp, pszId);
