@@ -475,14 +475,14 @@ imageObj* createImageCairo(int width, int height, outputFormatObj *format,colorO
       r->surface = cairo_pdf_surface_create_for_stream(
                      _stream_write_fn,
                      r->outputStream,
-                     width,height);
+                     0.72*width,0.72*height);
     } else if(!strcasecmp(format->driver,"cairo/svg")) {
       r->outputStream = (bufferObj*)malloc(sizeof(bufferObj));
       msBufferInit(r->outputStream);
       r->surface = cairo_svg_surface_create_for_stream(
                      _stream_write_fn,
                      r->outputStream,
-                     width,height);
+                     0.72*width,0.72*height);
     } else if(!strcasecmp(format->driver,"cairo/winGDI") && format->device) {
 #if CAIRO_HAS_WIN32_SURFACE
       r->outputStream = NULL;
@@ -504,6 +504,11 @@ imageObj* createImageCairo(int width, int height, outputFormatObj *format,colorO
       r->surface = cairo_image_surface_create (CAIRO_FORMAT_ARGB32, width, height);
     }
     r->cr = cairo_create(r->surface);
+
+    if(!strcasecmp(format->driver,"cairo/pdf") || !strcasecmp(format->driver,"cairo/svg")) {
+      cairo_scale (r->cr, 0.72, 0.72);
+    }
+
     if(format->transparent || !bg || !MS_VALID_COLOR(*bg)) {
       r->use_alpha = 1;
       cairo_set_source_rgba (r->cr, 0,0,0,0);
