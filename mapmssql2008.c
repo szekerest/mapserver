@@ -981,19 +981,12 @@ static int prepare_database(layerObj *layer, rectObj rect, char **query_string)
     char buffer[10000] = "";
 
     for(t = 0; t < layer->numitems; t++) {
-      if (layerinfo->itemtypes && (layerinfo->itemtypes[t] == SQL_BINARY || layerinfo->itemtypes[t] == SQL_VARBINARY)) {
 #ifdef USE_ICONV
-      snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer), "convert(nvarchar(max), convert(varbinary(max),[%s]),2),", layer->items[t]);
-#else
-      snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer), "convert(varchar(max), convert(varbinary(max),[%s]),2),", layer->items[t]);
-#endif
-      } else {
-#ifdef USE_ICONV
-      snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer), "convert(nvarchar(max), [%s]),", layer->items[t]);
+      /* no conversion applied at the database */
+      snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer), "[%s],", layer->items[t]);
 #else
       snprintf(buffer + strlen(buffer), sizeof(buffer) - strlen(buffer), "convert(varchar(max), [%s]),", layer->items[t]);
 #endif
-      }
     }
 
     if (layerinfo->geometry_format == MSSQLGEOMETRY_NATIVE)
@@ -1098,7 +1091,24 @@ static int prepare_database(layerObj *layer, rectObj rect, char **query_string)
   }
 
   if (executeSQL(layerinfo->conn, query_string_temp)) {
+    char pass_field_def = 0;
+    int t;
+    const char *value;
     *query_string = msStrdup(query_string_temp);
+    /* collect result information */
+    if((value = msOWSLookupMetadata(&(layer->metadata), "G", "types")) != NULL
+        && strcasecmp(value,"auto") == 0 )
+      pass_field_def = 1;
+
+    msFree(layerinfo->itemtypes);
+    layerinfo->itemtypes = msSmallMalloc(sizeof(SQLSMALLINT) * (layer->numitems + 1));
+    for(t = 0; t < layer->numitems; t++) {
+      char colBuff[256];
+      SQLSMALLINT itemType;
+
+      columnName(layerinfo->conn, t + 1, colBuff, sizeof(colBuff), layer, pass_field_def, &itemType);
+      layerinfo->itemtypes[t] = itemType;
+    }
 
     return MS_SUCCESS;
   } else {
@@ -1669,7 +1679,7 @@ int msMSSQL2008LayerGetShapeRandom(layerObj *layer, shapeObj *shape, long *recor
   int                 result;
   SQLLEN needLen = 0;
   SQLLEN retLen = 0;
-  char dummyBuffer[1];
+  char wrkBuffer[513];
   char *wkbBuffer;
   char *valueBuffer;
   char oidBuffer[ 16 ];   /* assuming the OID will always be a long this should be enough */
@@ -1714,35 +1724,126 @@ int msMSSQL2008LayerGetShapeRandom(layerObj *layer, shapeObj *shape, long *recor
       shape->numvalues = layer->numitems;
 
       for(t=0; t < layer->numitems; t++) {
+        SQLSMALLINT nFetchType;
+
+        switch( layerinfo->itemtypes[t] ) {
+          case SQL_WCHAR:
+          case SQL_WVARCHAR:
+          case SQL_WLONGVARCHAR:
+            nFetchType = SQL_C_WCHAR;
+            break;
+
+          case SQL_TIMESTAMP:
+          case SQL_BINARY:
+          case SQL_VARBINARY:
+          case SQL_LONGVARBINARY:
+          case -151: /*SQL_SS_UDT*/
+            nFetchType = SQL_C_BINARY;
+            break;
+
+          default:
+            nFetchType = SQL_C_CHAR;
+            break;
+        }
+
         /* figure out how big the buffer needs to be */
-        rc = SQLGetData(layerinfo->conn->hstmt, (SQLUSMALLINT)(t + 1), SQL_C_BINARY, dummyBuffer, 0, &needLen);
+        rc = SQLGetData(layerinfo->conn->hstmt, (SQLUSMALLINT)(t + 1), nFetchType, wrkBuffer, sizeof(wrkBuffer), &needLen);
+        needLen = (int)needLen;
+
         if (rc == SQL_ERROR)
           handleSQLError(layer);
 
         if (needLen > 0) {
-          /* allocate the buffer - this will be a null-terminated string so alloc for the null too */
-          valueBuffer = (char*) msSmallMalloc( needLen + 2 );
-          if ( valueBuffer == NULL ) {
-            msSetError( MS_QUERYERR, "Could not allocate value buffer.", "msMSSQL2008LayerGetShapeRandom()" );
-            return MS_FAILURE;
+          SQLLEN nDataLen = (SQLLEN)(sizeof(wrkBuffer) - 1);
+
+          valueBuffer = (char*)msSmallMalloc(needLen + 2);
+          if (valueBuffer == NULL) {
+              msSetError(MS_QUERYERR, "Could not allocate value buffer.", "msMSSQL2008LayerGetShapeRandom()");
+              return MS_FAILURE;
           }
+          
+          if (needLen >= nDataLen) {
+            /* need more data */
+            /* trimming the extra terminators */
+            if (nFetchType == SQL_C_CHAR)
+             while ((nDataLen > 1) && (wrkBuffer[nDataLen - 1] == 0))
+              --nDataLen;
+            else if (nFetchType == SQL_C_WCHAR)
+             while ((nDataLen > 1) && (wrkBuffer[nDataLen - 1] == 0)
+              && (wrkBuffer[nDataLen - 2] == 0))
+                nDataLen -= 2;
 
-          /* Now grab the data */
-          rc = SQLGetData(layerinfo->conn->hstmt, (SQLUSMALLINT)(t + 1), SQL_C_BINARY, valueBuffer, needLen, &retLen);
-          if (rc == SQL_ERROR || rc == SQL_SUCCESS_WITH_INFO)
-            handleSQLError(layer);
-
+            memcpy(valueBuffer, wrkBuffer, nDataLen);
+            rc = SQLGetData(layerinfo->conn->hstmt, (SQLUSMALLINT)(t + 1), nFetchType, valueBuffer + nDataLen, needLen - nDataLen + 2, &retLen);
+            if (rc == SQL_ERROR || rc == SQL_SUCCESS_WITH_INFO)
+              handleSQLError(layer);
+          }
+          else {
+            memcpy(valueBuffer, wrkBuffer, needLen);
+          }
+          
           /* Terminate the buffer */
-          valueBuffer[retLen] = 0; /* null terminate it */
+          valueBuffer[needLen] = 0; /* null terminate it */
 
           /* Pop the value into the shape's value array */
-#ifdef USE_ICONV
-          valueBuffer[retLen + 1] = 0;
-          shape->values[t] = msConvertWideStringToUTF8((wchar_t*)valueBuffer, "UCS-2LE");
-          msFree(valueBuffer);
-#else
-          shape->values[t] = valueBuffer;
-#endif
+          if (nFetchType == SQL_C_WCHAR) {	
+            valueBuffer[needLen + 1] = 0;
+            shape->values[t] = (char*)msSmallMalloc((needLen * 3) + 1);
+
+            if (shape->values[t]) {
+                iconv_t cd;
+                size_t iconv_status = -1;
+                size_t nInSize = needLen;
+                size_t nOutSize;
+                char* inBuffer = valueBuffer;
+                char* outBuffer = shape->values[t];
+
+                nOutSize = (needLen * 3) + 1;
+
+                if (layer->encoding)
+                    cd = iconv_open(layer->encoding, "UCS-2LE");
+                else
+                    cd = iconv_open("UTF-8", "UCS-2LE");
+
+                if (cd == (iconv_t)-1) {
+                    msSetError(MS_QUERYERR, "Encoding not supported by libiconv (%s).",
+                        "msMSSQL2008LayerGetShapeRandom()", layer->encoding);
+                    msFree(valueBuffer);
+                    return MS_FAILURE;
+                }
+
+                iconv_status = iconv(cd, &inBuffer, &nInSize, &outBuffer, &nOutSize);
+                if (iconv_status == -1) {
+                    msSetError(MS_MISCERR, "Unable to convert string",
+                        "msMSSQL2008LayerGetShapeRandom()");
+                    iconv_close(cd);
+                    msFree(valueBuffer);
+                    return MS_FAILURE;
+                }
+
+                if (nOutSize > 0)
+                    *outBuffer = 0; /* null terminate */
+
+                iconv_close(cd);
+            }
+            else
+                shape->values[t] = msStrdup("");
+            
+            msFree(valueBuffer);
+          }
+          else if (nFetchType == SQL_C_CHAR) {
+              shape->values[t] = valueBuffer;
+          }
+          else if (nFetchType == SQL_C_BINARY) {
+            /* convert to hex string */
+            shape->values[t] = (char*)msSmallMalloc( 2 * needLen + 1);
+            msHexEncode(valueBuffer, shape->values[t], needLen);
+            msFree(valueBuffer);
+          }
+          else {
+              shape->values[t] = msStrdup("");
+              msFree(valueBuffer);
+          }
         } else
           /* Copy empty sting for NULL values */
           shape->values[t] = msStrdup("");
@@ -1751,7 +1852,7 @@ int msMSSQL2008LayerGetShapeRandom(layerObj *layer, shapeObj *shape, long *recor
       /* Get shape geometry */
       {
         /* Set up to request the size of the buffer needed */
-        rc = SQLGetData(layerinfo->conn->hstmt, (SQLUSMALLINT)(layer->numitems + 1), SQL_C_BINARY, dummyBuffer, 0, &needLen);
+        rc = SQLGetData(layerinfo->conn->hstmt, (SQLUSMALLINT)(layer->numitems + 1), SQL_C_BINARY, wrkBuffer, 0, &needLen);
         if (rc == SQL_ERROR)
           handleSQLError(layer);
 
