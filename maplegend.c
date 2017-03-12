@@ -227,7 +227,7 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass,
             if((lp->minscaledenom > 0) && (map->scaledenom <= lp->minscaledenom)) continue;
           }
           if(hittest && hittest->stylehits[i].status == 0) continue;
-          ret = msDrawMarkerSymbol(map, image_draw, &marker, theclass->styles[i], lp->scalefactor * image->resolutionfactor);
+          ret = msDrawMarkerSymbol(map, image_draw, &marker, theclass->styles[i], lp->scalefactor);
           if(UNLIKELY(ret == MS_FAILURE)) goto legend_icon_cleanup;
         }
       }
@@ -608,10 +608,10 @@ int msLegendCalcSize(mapObj *map, int scale_independent, int *size_x, int *size_
         }
         freeTextSymbol(&ts);
 
-        maxwidth = MS_MAX(maxwidth, MS_NINT((rect.maxx - rect.minx)*resolutionfactor));
-        *size_y += MS_MAX(MS_NINT((rect.maxy - rect.miny)*resolutionfactor), map->legend.keysizey);
+        maxwidth = MS_MAX(maxwidth, MS_NINT((rect.maxx - rect.minx)));
+        *size_y += MS_MAX(MS_NINT((rect.maxy - rect.miny)), keysizey);
       } else {
-        *size_y += map->legend.keysizey;
+        *size_y += keysizey;
       }
       nLegendItems++;
     }
@@ -735,9 +735,9 @@ imageObj *msDrawLegend(mapObj *map, int scale_independent, map_hittest *hittest)
           ret = MS_FAILURE;
           goto cleanup;
         }
-        cur->height = MS_MAX(MS_NINT((rect.maxy - rect.miny)*resolutionfactor), map->legend.keysizey);
+        cur->height = MS_MAX(MS_NINT((rect.maxy - rect.miny)), keysizey);
       } else {
-        cur->height = map->legend.keysizey;
+        cur->height = keysizey;
       }
 
       cur->classindex = j;
