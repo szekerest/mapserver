@@ -273,11 +273,11 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass,
 	     * and then restore the style to render the interior of the line
 	     */
 	    msOutlineRenderingPrepareStyle(theclass->styles[i], map, lp, image);
-	    ret = msDrawLineSymbol(map, image_draw, &zigzag, theclass->styles[i], lp->scalefactor * image_draw->resolutionfactor);
+	    ret = msDrawLineSymbol(map, image_draw, &zigzag, theclass->styles[i], lp->scalefactor);
 	    msOutlineRenderingRestoreStyle(theclass->styles[i], map, lp, image);
             if(UNLIKELY(ret == MS_FAILURE)) goto legend_icon_cleanup;
 	  }
-          ret = msDrawLineSymbol(map, image_draw, &zigzag, theclass->styles[i], lp->scalefactor * image_draw->resolutionfactor);
+          ret = msDrawLineSymbol(map, image_draw, &zigzag, theclass->styles[i], lp->scalefactor);
           if(UNLIKELY(ret == MS_FAILURE)) goto legend_icon_cleanup;
         }
         else {
@@ -286,11 +286,11 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass,
 	     * and then restore the style to render the interior of the line
 	     */
 	    msOutlineRenderingPrepareStyle(theclass->styles[i], map, lp, image);
-	    ret = msDrawTransformedShape(map, image_draw, &zigzag, theclass->styles[i], lp->scalefactor * image_draw->resolutionfactor);
+	    ret = msDrawTransformedShape(map, image_draw, &zigzag, theclass->styles[i], lp->scalefactor);
 	    msOutlineRenderingRestoreStyle(theclass->styles[i], map, lp, image);
             if(UNLIKELY(ret == MS_FAILURE)) goto legend_icon_cleanup;
 	  }
-          ret = msDrawTransformedShape(map, image_draw, &zigzag, theclass->styles[i], lp->scalefactor * image_draw->resolutionfactor);
+          ret = msDrawTransformedShape(map, image_draw, &zigzag, theclass->styles[i], lp->scalefactor);
           if(UNLIKELY(ret == MS_FAILURE)) goto legend_icon_cleanup;
         }
       }
@@ -323,7 +323,7 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass,
             }
             else
             {
-                ret = msDrawShadeSymbol(map, image_draw, &box, theclass->styles[i], lp->scalefactor * image_draw->resolutionfactor);
+                ret = msDrawShadeSymbol(map, image_draw, &box, theclass->styles[i], lp->scalefactor);
             }
             if(UNLIKELY(ret == MS_FAILURE)) goto legend_icon_cleanup;
         }
