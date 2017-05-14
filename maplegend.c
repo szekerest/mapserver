@@ -385,9 +385,10 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass,
     marker.x = dstX + MS_NINT(width / 2.0);
     marker.y = dstY + MS_NINT(height / 2.0);
     initTextSymbol(&ts);
-    msPopulateTextSymbolForLabelAndString(&ts,theclass->labels[0],msStrdup("Az"),lp->scalefactor*image_draw->resolutionfactor,image_draw->resolutionfactor, duplicate_always);
+    msPopulateTextSymbolForLabelAndString(&ts,theclass->labels[0],msStrdup("Az"),lp->scalefactor,image_draw->resolutionfactor, duplicate_always);
     ts.label->size = height - 1;
     ts.rotation = 0;
+    ts.scalefactor = 1.0; /* keysize is already scaled */
     ret = msComputeTextPath(map,&ts);
     if(UNLIKELY(ret == MS_FAILURE)) goto legend_icon_cleanup;
     textstartpt = get_metrics(&marker,MS_CC,ts.textpath,0,0,0,0,NULL);
