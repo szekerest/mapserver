@@ -726,21 +726,6 @@ int msDrawLayer(mapObj *map, layerObj *layer, imageObj *image)
       if(retcode != MS_SUCCESS) {
         return MS_FAILURE;
       }
-      /*
-       * hack to work around bug #3834: if we have use an alternate renderer, the symbolset may contain
-       * symbols that reference it. We want to remove those references before the altFormat is destroyed
-       * to avoid a segfault and/or a leak, and so the the main renderer doesn't pick the cache up thinking
-       * it's for him.
-       */
-      for(i=0; i<map->symbolset.numsymbols; i++) {
-        if (map->symbolset.symbol[i]!=NULL) {
-          symbolObj *s = map->symbolset.symbol[i];
-          if(s->renderer == MS_IMAGE_RENDERER(maskLayer->maskimage)) {
-            MS_IMAGE_RENDERER(maskLayer->maskimage)->freeSymbol(s);
-            s->renderer = NULL;
-          }
-        }
-      }
       /* set the imagetype from the original outputformat back (it was removed by msSelectOutputFormat() */
       msFree(map->imagetype);
       map->imagetype = msStrdup(image->format->name);
@@ -818,21 +803,6 @@ int msDrawLayer(mapObj *map, layerObj *layer, imageObj *image)
     }
 
 altformat_cleanup:
-    /*
-     * hack to work around bug #3834: if we have use an alternate renderer, the symbolset may contain
-     * symbols that reference it. We want to remove those references before the altFormat is destroyed
-     * to avoid a segfault and/or a leak, and so the the main renderer doesn't pick the cache up thinking
-     * it's for him.
-     */
-    for(i=0; i<map->symbolset.numsymbols; i++) {
-      if (map->symbolset.symbol[i]!=NULL) {
-        symbolObj *s = map->symbolset.symbol[i];
-        if(s->renderer == altrenderer) {
-          altrenderer->freeSymbol(s);
-          s->renderer = NULL;
-        }
-      }
-    }
     msFreeImage(image_draw);
     /* set the imagetype from the original outputformat back (it was removed by msSelectOutputFormat() */
     msFree(map->imagetype);
