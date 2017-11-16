@@ -894,8 +894,8 @@ int msLoadFontSet(fontSetObj *fontset, mapObj *map)
 
   stream = fopen( msBuildPath(szPath, fontset->map->mappath, fontset->filename), "r");
   if(!stream) {
-    msSetError(MS_IOERR, "Error opening fontset %s.", "msLoadFontset()",
-               fontset->filename);
+    msSetError(MS_IOERR, "Error opening fontset %s. errno: %d", "msLoadFontset()",
+               fontset->filename, errno);
     return(-1);
   }
 

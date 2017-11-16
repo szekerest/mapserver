@@ -6745,7 +6745,7 @@ mapObj *msLoadMap(char *filename, char *new_mappath)
   } else {
 #endif
     if((msyyin = fopen(filename,"r")) == NULL) {
-      msSetError(MS_IOERR, "(%s)", "msLoadMap()", filename);
+      msSetError(MS_IOERR, "(%s) (%d)", "msLoadMap()", filename, errno);
       msReleaseLock( TLOCK_PARSER );
       return NULL;
     }
@@ -7302,7 +7302,7 @@ static char **tokenizeMapInternal(char *filename, int *ret_numtokens)
   }
 
   if((msyyin = fopen(filename,"r")) == NULL) {
-    msSetError(MS_IOERR, "(%s)", "msTokenizeMap()", filename);
+    msSetError(MS_IOERR, "(%s) (%d)", "msTokenizeMap()", filename, errno);
     return NULL;
   }
 

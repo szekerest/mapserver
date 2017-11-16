@@ -570,7 +570,7 @@ int loadSymbolSet(symbolSetObj *symbolset, mapObj *map)
   ** Open the file
   */
   if((msyyin = fopen(msBuildPath(szPath, symbolset->map->mappath, symbolset->filename), "r")) == NULL) {
-    msSetError(MS_IOERR, "(%s)", "loadSymbolSet()", symbolset->filename);
+    msSetError(MS_IOERR, "(%s) (%d)", "loadSymbolSet()", symbolset->filename, errno);
     return(-1);
   }
 
