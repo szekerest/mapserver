@@ -218,7 +218,7 @@ face_element* msGetFontFace(char *key, fontSetObj *fontset) {
       error = FT_New_Memory_Face(cache->library,dejavu_sans_condensed_ttf, dejavu_sans_condensed_ttf_len , 0, &(fc->face));
     }
     if(error) {
-      msSetError(MS_MISCERR, "Freetype was unable to load font file \"%s\" for key \"%s\"", "msGetFontFace()", fontfile, key);
+      msSetError(MS_MISCERR, "Freetype was unable to load font file \"%s\" for key \"%s\" FT_error:%d", "msGetFontFace()", fontfile, key, error);
       free(fc);
       return NULL;
     }
