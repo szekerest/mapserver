@@ -38,7 +38,7 @@ typedef struct {
   glyph_element *bitmap_glyph_cache;
 } ft_cache;
 
-#ifdef USE_THREAD
+#ifdef USE_THREAD_NOTSET
 typedef struct ft_thread_cache ft_thread_cache;
 struct ft_thread_cache{
   void* thread_id;
@@ -99,7 +99,7 @@ void msFreeFontCache(ft_cache *c) {
 }
 
 ft_cache* msGetFontCache() {
-#ifndef USE_THREAD
+#ifndef USE_THREAD_NOTSET
   return &global_ft_cache;
 #else
   void* nThreadId = msGetThreadId();
@@ -151,7 +151,7 @@ ft_cache* msGetFontCache() {
 }
 
 void msFontCacheSetup() {
-#ifndef USE_THREAD
+#ifndef USE_THREAD_NOTSET
   ft_cache *c = msGetFontCache();
   msInitFontCache(c);
 #else
@@ -160,7 +160,7 @@ void msFontCacheSetup() {
 }
 
 void msFontCacheCleanup() {
-#ifndef USE_THREAD
+#ifndef USE_THREAD_NOTSET
   ft_cache *c = msGetFontCache();
   msFreeFontCache(c);
 #else
@@ -202,6 +202,7 @@ face_element* msGetFontFace(char *key, fontSetObj *fontset) {
   if(!key) {
     key = MS_DEFAULT_FONT_KEY;
   }
+  msAcquireLock( TLOCK_TTF );
   UT_HASH_FIND_STR(cache->face_cache,key,fc);
   if(!fc) {
     char *fontfile = NULL;
@@ -211,6 +212,7 @@ face_element* msGetFontFace(char *key, fontSetObj *fontset) {
       if(!fontfile) {
         msSetError(MS_MISCERR, "Could not find font with key \"%s\" in fontset", "msGetFontFace()", key);
         free(fc);
+        msReleaseLock( TLOCK_TTF );
         return NULL;
       }
       error = FT_New_Face(cache->library,fontfile,0, &(fc->face));
@@ -220,6 +222,7 @@ face_element* msGetFontFace(char *key, fontSetObj *fontset) {
     if(error) {
       msSetError(MS_MISCERR, "Freetype was unable to load font file \"%s\" for key \"%s\" FT_error:%d", "msGetFontFace()", fontfile, key, error);
       free(fc);
+      msReleaseLock( TLOCK_TTF );
       return NULL;
     }
     if(!fc->face->charmap) {
@@ -231,7 +234,7 @@ face_element* msGetFontFace(char *key, fontSetObj *fontset) {
     fc->font = msStrdup(key);
     UT_HASH_ADD_KEYPTR(hh,cache->face_cache,fc->font, strlen(key), fc);
   }
-
+  msReleaseLock( TLOCK_TTF );
   return fc;
 }
 
@@ -271,6 +274,7 @@ outline_element* msGetGlyphOutline(face_element *face, glyph_element *glyph) {
   ft_cache *cache = msGetFontCache();
   memset(&key,0,sizeof(outline_element_key));
   key.glyph = glyph;
+  msAcquireLock( TLOCK_TTF );
   UT_HASH_FIND(hh,face->outline_cache,&key, sizeof(outline_element_key),oc);
   if(!oc) {
     FT_Matrix matrix;
@@ -287,6 +291,7 @@ outline_element* msGetGlyphOutline(face_element *face, glyph_element *glyph) {
     error = FT_Load_Glyph(face->face,glyph->key.codepoint,FT_LOAD_DEFAULT/*|FT_LOAD_IGNORE_TRANSFORM*/|FT_LOAD_NO_HINTING|FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH);
     if(error) {
       msSetError(MS_MISCERR, "unable to load glyph %ud for font \"%s\"", "msGetGlyphByIndex()",glyph->key.codepoint, face->font);
+      msReleaseLock( TLOCK_TTF );
       return NULL;
     }
     error = FT_Outline_New(cache->library, face->face->glyph->outline.n_points,
@@ -295,5 +300,6 @@ outline_element* msGetGlyphOutline(face_element *face, glyph_element *glyph) {
     oc->key = key;
     UT_HASH_ADD(hh,face->outline_cache,key,sizeof(outline_element_key), oc);
   }
+  msReleaseLock( TLOCK_TTF );
   return oc;
 }
