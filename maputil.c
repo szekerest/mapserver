@@ -1894,6 +1894,14 @@ shapeObj *msOffsetPolyline(shapeObj *p, double offsetx, double offsety)
 
 int msSetup()
 {
+#ifdef _WIN32
+  int res = _getmaxstdio();
+  if (res < 2048) {
+    res = _setmaxstdio(2048);
+	assert(res != -1);
+  }
+#endif
+
 #ifdef USE_THREAD
   msThreadInit();
 #endif
