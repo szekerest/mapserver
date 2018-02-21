@@ -37,6 +37,7 @@
 #include <limits.h>
 #include <assert.h>
 #include "mapserver.h"
+#include "mapows.h"
 
 #if defined(USE_GDAL) || defined(USE_OGR)
 #include <cpl_conv.h>
@@ -78,10 +79,7 @@ static void SwapWord( int length, void * wordP )
 /************************************************************************/
 static void * SfRealloc( void * pMem, int nNewSize )
 {
-  if( pMem == NULL )
-    return( (void *) malloc(nNewSize) );
-  else
-    return( (void *) realloc(pMem,nNewSize) );
+  return realloc(pMem, nNewSize);
 }
 
 /************************************************************************/
@@ -270,6 +268,7 @@ SHPHandle msSHPOpen( const char * pszLayer, const char * pszAccess )
     psSHP->fpSHX = fopen(pszFullname, pszAccess );
   }
   if( psSHP->fpSHX == NULL ) {
+    fclose(psSHP->fpSHP);
     msFree(pszBasename);
     msFree(pszFullname);
     msFree(psSHP);
@@ -421,8 +420,8 @@ void msSHPClose(SHPHandle psSHP )
   free( psSHP->panRecLoaded );
 
 
-  if(psSHP->pabyRec) free(psSHP->pabyRec);
-  if(psSHP->panParts) free(psSHP->panParts);
+  free(psSHP->pabyRec);
+  free(psSHP->panParts);
 
   fclose( psSHP->fpSHX );
   fclose( psSHP->fpSHP );
@@ -1696,7 +1695,7 @@ int msSHPReadBounds( SHPHandle psSHP, int hEntity, rectObj *padBounds)
   return MS_SUCCESS;
 }
 
-int msShapefileOpen(shapefileObj *shpfile, char *mode, char *filename, int log_failures)
+int msShapefileOpen(shapefileObj *shpfile, const char *mode, const char *filename, int log_failures)
 {
   int i;
   char *dbfFilename;
@@ -1798,7 +1797,7 @@ void msShapefileClose(shapefileObj *shpfile)
   if (shpfile && shpfile->isopen == MS_TRUE) { /* Silently return if called with NULL shpfile by freeLayer() */
     if(shpfile->hSHP) msSHPClose(shpfile->hSHP);
     if(shpfile->hDBF) msDBFClose(shpfile->hDBF);
-    if(shpfile->status) free(shpfile->status);
+    free(shpfile->status);
     shpfile->isopen = MS_FALSE;
   }
 }
@@ -1812,10 +1811,8 @@ int msShapefileWhichShapes(shapefileObj *shpfile, rectObj rect, int debug)
   char *sourcename = 0; /* shape file source string from map file */
   char *s = 0; /* pointer to start of '.shp' in source string */
 
-  if(shpfile->status) {
-    free(shpfile->status);
-    shpfile->status = NULL;
-  }
+  free(shpfile->status);
+  shpfile->status = NULL;
 
   shpfile->statusbounds = rect; /* save the search extent */
 
@@ -1964,7 +1961,7 @@ int msTiledSHPOpenFile(layerObj *layer)
     tlp = (GET_LAYER(layer->map, tSHP->tilelayerindex));
 
     if(tlp->connectiontype != MS_SHAPEFILE) {
-      msSetError(MS_SDEERR, "Tileindex layer must be a shapefile.", "msTiledSHPOpenFile()");
+      msSetError(MS_SHPERR, "Tileindex layer must be a shapefile.", "msTiledSHPOpenFile()");
       return(MS_FAILURE);
     }
 
@@ -2637,7 +2634,7 @@ int msSHPLayerOpen(layerObj *layer)
         }
     }
 #else /* !(defined(USE_GDAL) || defined(USE_OGR)) */
-    if( layer->debug layer->map->debug ) {
+    if( layer->debug || layer->map->debug ) {
         msDebug( "Unable to get SRS from shapefile '%s' for layer '%s'. GDAL or OGR support needed\n", szPath, layer->name );
     }
 #endif /* defined(USE_GDAL) || defined(USE_OGR) */
@@ -2676,7 +2673,7 @@ int msSHPLayerWhichShapes(layerObj *layer, rectObj rect, int isQuery)
 
 int msSHPLayerNextShape(layerObj *layer, shapeObj *shape)
 {
-  int i, filter_passed=MS_FALSE;
+  int i;
   shapefileObj *shpfile;
 
   shpfile = layer->layerinfo;
@@ -2686,29 +2683,18 @@ int msSHPLayerNextShape(layerObj *layer, shapeObj *shape)
     return MS_FAILURE;
   }
 
-  do {
-    i = msGetNextBit(shpfile->status, shpfile->lastshape + 1, shpfile->numshapes);
-    shpfile->lastshape = i;
-    if(i == -1) return(MS_DONE); /* nothing else to read */
+  i = msGetNextBit(shpfile->status, shpfile->lastshape + 1, shpfile->numshapes);
+  shpfile->lastshape = i;
+  if(i == -1) return(MS_DONE); /* nothing else to read */
 
-    msSHPReadShape(shpfile->hSHP, i, shape);
-    if(shape->type == MS_SHAPE_NULL) {
-      msFreeShape(shape);
-      continue; /* skip NULL shapes */
-    }
-    shape->numvalues = layer->numitems;
-    shape->values = msDBFGetValueList(shpfile->hDBF, i, layer->iteminfo, layer->numitems);
-    if(!shape->values) {
-      shape->numvalues = 0;
-    }
-
-    filter_passed = MS_TRUE;  /* By default accept ANY shape */
-    if(layer->numitems > 0 && layer->iteminfo) {
-      filter_passed = msEvalExpression(layer, shape, &(layer->filter), layer->filteritemindex);
-    }
-
-    if(!filter_passed) msFreeShape(shape);
-  } while(!filter_passed);  /* Loop until both spatial and attribute filters match */
+  msSHPReadShape(shpfile->hSHP, i, shape);
+  if(shape->type == MS_SHAPE_NULL) {
+    msFreeShape(shape);
+    return msSHPLayerNextShape(layer, shape); /* skip NULL shapes */
+  }
+  shape->numvalues = layer->numitems;
+  shape->values = msDBFGetValueList(shpfile->hDBF, i, layer->iteminfo, layer->numitems);
+  if(!shape->values) shape->numvalues = 0;
 
   return MS_SUCCESS;
 }
@@ -2815,6 +2801,7 @@ int msSHPLayerInitializeVirtualTable(layerObj *layer)
   /* layer->vtable->LayerGetAutoStyle, use default */
   /* layer->vtable->LayerCloseConnection, use default */
   layer->vtable->LayerSetTimeFilter = msLayerMakeBackticsTimeFilter;
+  /* layer->vtable->LayerTranslateFilter, use default */
   /* layer->vtable->LayerApplyFilterToLayer, use default */
   /* layer->vtable->LayerCreateItems, use default */
   /* layer->vtable->LayerGetNumFeatures, use default */

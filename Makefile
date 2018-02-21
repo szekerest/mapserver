@@ -9,7 +9,7 @@ CMAKEFLAGS=-DCMAKE_C_FLAGS="--coverage" -DCMAKE_CXX_FLAGS="--coverage" \
 			  -DCMAKE_SHARED_LINKER_FLAGS="-lgcov" -DWITH_CLIENT_WMS=1 \
 			  -DWITH_CLIENT_WFS=1 -DWITH_KML=1 -DWITH_SOS=1 -DWITH_PHP=1 \
 			  -DWITH_PYTHON=1 -DWITH_JAVA=1 -DWITH_THREAD_SAFETY=1 -DWITH_FRIBIDI=1 -DWITH_FCGI=0 -DWITH_EXEMPI=1 \
-			  -DCMAKE_BUILD_TYPE=Release -DWITH_RSVG=1 -DWITH_CURL=1 -DWITH_HARFBUZZ=1
+			  -DCMAKE_BUILD_TYPE=Release -DWITH_RSVG=1 -DWITH_CURL=1 -DWITH_HARFBUZZ=1 -DWITH_POINT_Z_M=1
 all: cmakebuild
 
 cmakebuild: lexer parser
@@ -20,22 +20,19 @@ warning:
 	$(error "This Makefile is used to run the \"test\" target")
 
 wxs-testcase:
-	cd msautotest/wxs && export PATH=$(BUILDPATH):$(PATH) && ./run_test.py $(AUTOTEST_OPTS)
+	cd msautotest/wxs && chmod 777 tmp && rm -f result/* && export PATH=$(BUILDPATH):$(PATH) && ./run_test.py $(AUTOTEST_OPTS)
 
 renderers-testcase:
-	cd msautotest/renderers && export PATH=$(BUILDPATH):$(PATH) && ./run_test.py $(AUTOTEST_OPTS)
+	cd msautotest/renderers  && rm -f result/* && export PATH=$(BUILDPATH):$(PATH) && ./run_test.py $(AUTOTEST_OPTS)
 
 misc-testcase:
-	cd msautotest/misc && export PATH=$(BUILDPATH):$(PATH) && ./run_test.py $(AUTOTEST_OPTS)
+	cd msautotest/misc  && rm -f result/* && export PATH=$(BUILDPATH):$(PATH) && ./run_test.py $(AUTOTEST_OPTS)
 
 gdal-testcase:
-	cd msautotest/gdal && export PATH=$(BUILDPATH):$(PATH) && ./run_test.py $(AUTOTEST_OPTS)
+	cd msautotest/gdal  && rm -f result/* && export PATH=$(BUILDPATH):$(PATH) && ./run_test.py $(AUTOTEST_OPTS)
 
 query-testcase:
-	cd msautotest/query && export PATH=$(BUILDPATH):$(PATH) && ./run_test.py $(AUTOTEST_OPTS)
-
-autotest-install:
-	test -d "msautotest/wxs" ||  ( git submodule init && git submodule update )
+	cd msautotest/query  && rm -f result/* && export PATH=$(BUILDPATH):$(PATH) && ./run_test.py $(AUTOTEST_OPTS)
 
 mspython-testcase:
 	test -f "$(PYTHON_MAPSCRIPT_PATH)/_mapscript.so" && (export PYTHONPATH="../../$(PYTHON_MAPSCRIPT_PATH)" && cd msautotest/mspython && python run_all_tests.py)
@@ -46,18 +43,17 @@ php-testcase:
 java-testcase:
 	test -d "$(JAVA_MAPSCRIPT_PATH)" && (export JAVA_MAPSCRIPT_SO="../../$(JAVA_MAPSCRIPT_PATH)" && cd mapscript/java && ./run_test.sh)
 
-test: autotest-install cmakebuild
+test:  cmakebuild
 	@$(MAKE) $(MFLAGS)	wxs-testcase renderers-testcase misc-testcase gdal-testcase query-testcase mspython-testcase
 	@./print-test-results.sh
 	@$(MAKE) $(MFLAGS)	php-testcase
-	@$(MAKE) $(MFLAGS)	java-testcase
 
 
 lexer: maplexer.c
 parser: mapparser.c
 
 maplexer.c: maplexer.l
-	$(FLEX) --nounistd -Pmsyy -i -o$(CURDIR)/maplexer.c $(CURDIR)/maplexer.l
+	$(FLEX) --nounistd -Pmsyy -i -o$(CURDIR)/maplexer.c maplexer.l
 
 mapparser.c: mapparser.y
-	$(YACC) -d -o$(CURDIR)/mapparser.c $(CURDIR)/mapparser.y
+	$(YACC) -d -o$(CURDIR)/mapparser.c mapparser.y

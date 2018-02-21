@@ -41,7 +41,7 @@ typedef struct {
 #ifdef USE_THREAD
 typedef struct ft_thread_cache ft_thread_cache;
 struct ft_thread_cache{
-  int thread_id;
+  void* thread_id;
   ft_thread_cache *next;
   ft_cache cache;
 };
@@ -86,6 +86,7 @@ void msFreeFontCache(ft_cache *c) {
       }
 #endif
       FT_Done_Face(cur_face->face);
+      free(cur_face->font);
       UT_HASH_DEL(c->face_cache,cur_face);
       free(cur_face);
   }
@@ -101,7 +102,7 @@ ft_cache* msGetFontCache() {
 #ifndef USE_THREAD
   return &global_ft_cache;
 #else
-  int nThreadId = msGetThreadId();
+  void* nThreadId = msGetThreadId();
   ft_thread_cache *prev = NULL, *cur = ft_caches;
 
   if( cur != NULL && cur->thread_id == nThreadId )
@@ -227,9 +228,10 @@ face_element* msGetFontFace(char *key, fontSetObj *fontset) {
         FT_Select_Charmap(fc->face, FT_ENCODING_APPLE_ROMAN);
       /* the previous calls may have failed, we ignore as there's nothing much left to do */
     }
-    fc->font = key;
+    fc->font = msStrdup(key);
     UT_HASH_ADD_KEYPTR(hh,cache->face_cache,fc->font, strlen(key), fc);
   }
+
   return fc;
 }
 
@@ -271,11 +273,17 @@ outline_element* msGetGlyphOutline(face_element *face, glyph_element *glyph) {
   key.glyph = glyph;
   UT_HASH_FIND(hh,face->outline_cache,&key, sizeof(outline_element_key),oc);
   if(!oc) {
+    FT_Matrix matrix;
+    FT_Vector pen;
     FT_Error error;
     oc = msSmallMalloc(sizeof(outline_element));
     if(MS_NINT(glyph->key.size * 96.0/72.0) != face->face->size->metrics.x_ppem) {
       FT_Set_Pixel_Sizes(face->face,0,MS_NINT(glyph->key.size * 96/72.0));
     }
+    matrix.xx = matrix.yy = 0x10000L;
+    matrix.xy = matrix.yx = 0x00000L;
+    pen.x = pen.y = 0;
+    FT_Set_Transform(face->face, &matrix, &pen);
     error = FT_Load_Glyph(face->face,glyph->key.codepoint,FT_LOAD_DEFAULT/*|FT_LOAD_IGNORE_TRANSFORM*/|FT_LOAD_NO_HINTING|FT_LOAD_IGNORE_GLOBAL_ADVANCE_WIDTH);
     if(error) {
       msSetError(MS_MISCERR, "unable to load glyph %ud for font \"%s\"", "msGetGlyphByIndex()",glyph->key.codepoint, face->font);

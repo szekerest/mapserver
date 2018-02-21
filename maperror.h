@@ -30,6 +30,8 @@
 #ifndef MAPERROR_H
 #define MAPERROR_H
 
+#include "mapthread.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,7 +60,7 @@ extern "C" {
 #define MS_NOTFOUND 18 /* empty search results */
 #define MS_SHPERR 19
 #define MS_PARSEERR 20
-#define MS_SDEERR 21
+#define MS_UNUSEDERR 21
 #define MS_OGRERR 22
 #define MS_QUERYERR 23
 #define MS_WMSERR 24      /* WMS server error */
@@ -107,6 +109,7 @@ extern "C" {
     char routine[ROUTINELENGTH];
     char message[MESSAGELENGTH];
     int isreported;
+    int errorcount; /* number of subsequent errors */
 #ifndef SWIG
     struct errorObj *next;
 #endif
@@ -161,7 +164,7 @@ extern "C" {
     char        *errorfile;
     FILE        *fp;
     /* The following 2 members are used only with USE_THREAD (but we won't #ifndef them) */
-    int         thread_id;
+    void* thread_id;
     struct debug_info_obj *next;
   } debugInfoObj;
 

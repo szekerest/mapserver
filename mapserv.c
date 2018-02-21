@@ -52,8 +52,10 @@ void msCleanupOnSignal( int nInData )
   /* from within the signal handler on Unix.  So we force output through */
   /* normal stdio functions. */
   msIO_installHandlers( NULL, NULL, NULL );
+#ifndef NDEBUG
   msIO_fprintf( stderr, "In msCleanupOnSignal.\n" );
-  msCleanup(1);
+#endif
+  msCleanup();
   exit(0);
 }
 #endif
@@ -147,7 +149,7 @@ int main(int argc, char *argv[])
   /* -------------------------------------------------------------------- */
   if( msSetup() != MS_SUCCESS ) {
     msCGIWriteError(mapserv);
-    msCleanup(0);
+    msCleanup();
     exit(0);
   }
 
@@ -162,7 +164,8 @@ int main(int argc, char *argv[])
   for( iArg = 1; iArg < argc; iArg++ ) {
     /* Keep only "-v", "-nh" and "QUERY_STRING=..." enabled by default.
      * The others will require an explicit -DMS_ENABLE_CGI_CL_DEBUG_ARGS
-     * at compile time.
+     * at compile time. Do *NOT* enable them since they can cause security
+     * problems : https://github.com/mapserver/mapserver/issues/3485
      */
     if( strcmp(argv[iArg],"-v") == 0 ) {
       printf("%s\n", msGetVersion());
@@ -170,10 +173,29 @@ int main(int argc, char *argv[])
       exit(0);
     } else if(strcmp(argv[iArg], "-nh") == 0) {
       sendheaders = MS_FALSE;
+      msIO_setHeaderEnabled( MS_FALSE );
     } else if( strncmp(argv[iArg], "QUERY_STRING=", 13) == 0 ) {
       /* Debugging hook... pass "QUERY_STRING=..." on the command-line */
       putenv( "REQUEST_METHOD=GET" );
       putenv( argv[iArg] );
+    } else if (strcmp(argv[iArg], "--h") == 0 || strcmp(argv[iArg], "--help") == 0) {
+      printf("Usage: mapserv [--help] [-v] [-nh] [QUERY_STRING=value]\n");
+#ifdef MS_ENABLE_CGI_CL_DEBUG_ARGS
+      printf("               [-tmpbase dirname] [-t mapfilename] [MS_ERRORFILE=value] [MS_DEBUGLEVEL=value]\n");
+#endif
+      printf("\n");
+      printf("Options :\n");
+      printf("  -h, --help              Display this help message.\n");
+      printf("  -v                      Display version and exit.\n");
+      printf("  -nh                     Suppress HTTP headers in CGI mode.\n");
+      printf("  QUERY_STRING=value      Set the QUERY_STRING in GET request mode.\n");
+#ifdef MS_ENABLE_CGI_CL_DEBUG_ARGS
+      printf("  -tmpbase dirname        Define a forced temporary directory.\n");
+      printf("  -t mapfilename          Display the tokens of the mapfile after parsing.\n");
+      printf("  MS_ERRORFILE=filename   Set error file.\n");
+      printf("  MS_DEBUGLEVEL=value     Set debug level.\n");
+#endif
+      exit(0);
     }
 #ifdef MS_ENABLE_CGI_CL_DEBUG_ARGS
     else if( iArg < argc-1 && strcmp(argv[iArg], "-tmpbase") == 0) {
@@ -213,10 +235,6 @@ int main(int argc, char *argv[])
 
 #ifdef USE_FASTCGI
   msIO_installFastCGIRedirect();
-
-#ifdef WIN32
-  atexit( msCleanupOnExit );
-#endif
 
   /* In FastCGI case we loop accepting multiple requests.  In normal CGI */
   /* use we only accept and process one request.  */
@@ -285,7 +303,7 @@ end_request:
             (execendtime.tv_sec+execendtime.tv_usec/1.0e6)-
             (execstarttime.tv_sec+execstarttime.tv_usec/1.0e6) );
   }
-  msCleanup(0);
+  msCleanup();
 
 #ifdef _WIN32
   /* flush pending writes to stdout */

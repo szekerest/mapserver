@@ -247,8 +247,8 @@ imageObj *getTile(imageObj *img, symbolObj *symbol,  symbolStyleObj *s, int widt
           if(UNLIKELY(!face)) { status = MS_FAILURE; break; }
           msUTF8ToUniChar(symbol->character, &unicode);
           unicode = msGetGlyphIndex(face,unicode);
-          glyphc = msGetGlyphByIndex(face, s->scale, unicode);
-          if(UNLIKELY(!face)) { status = MS_FAILURE; break; }
+          glyphc = msGetGlyphByIndex(face, MS_MAX(MS_NINT(s->scale),1), unicode);
+          if(UNLIKELY(!glyphc)) { status = MS_FAILURE; break; }
           status = drawGlyphMarker(tileimg, face, glyphc, p_x, p_y, s->scale, s->rotation,
                 s->color, s->outlinecolor, s->outlinewidth);
         }
@@ -311,7 +311,7 @@ imageObj *getTile(imageObj *img, symbolObj *symbol,  symbolStyleObj *s, int widt
               if(UNLIKELY(!face)) { status = MS_FAILURE; break; }
               msUTF8ToUniChar(symbol->character, &unicode);
               unicode = msGetGlyphIndex(face,unicode);
-              glyphc = msGetGlyphByIndex(face, s->scale, unicode);
+              glyphc = msGetGlyphByIndex(face, MS_MAX(MS_NINT(s->scale),1), unicode);
               if(UNLIKELY(!glyphc)) { status = MS_FAILURE; break; }
               status = drawGlyphMarker(tileimg, face, glyphc, p_x, p_y, s->scale, s->rotation,
                     s->color, s->outlinecolor, s->outlinewidth);
@@ -384,7 +384,7 @@ int msImagePolylineMarkers(imageObj *image, shapeObj *p, symbolObj *symbol,
     face = msGetFontFace(symbol->font, &image->map->fontset);
     if(UNLIKELY(!face)) return MS_FAILURE;
     unicode = msGetGlyphIndex(face,unicode);
-    glyphc = msGetGlyphByIndex(face, style->scale, unicode);
+    glyphc = msGetGlyphByIndex(face, MS_MAX(MS_NINT(style->scale),1), unicode);
     if(UNLIKELY(!glyphc)) return MS_FAILURE;
     symbol_width = glyphc->metrics.maxx - glyphc->metrics.minx;
     symbol_height = glyphc->metrics.maxy - glyphc->metrics.miny;
@@ -561,7 +561,7 @@ int msDrawLineSymbol(mapObj *map, imageObj *image, shapeObj *p,
       rendererVTableObj *renderer = image->format->vtable;
       symbolObj *symbol;
       shapeObj *offsetLine = p;
-      int i,ret=MS_SUCCESS;
+      int i;
       double width;
       double finalscalefactor;
 
@@ -922,7 +922,7 @@ int msDrawMarkerSymbol(mapObj *map, imageObj *image, pointObj *p, styleObj *styl
           if(UNLIKELY(!face)) return MS_FAILURE;
           msUTF8ToUniChar(symbol->character,&unicode);
           unicode = msGetGlyphIndex(face,unicode);
-          glyphc = msGetGlyphByIndex(face,s.scale,unicode);
+          glyphc = msGetGlyphByIndex(face, MS_MAX(MS_NINT(s.scale),1), unicode);
           if(UNLIKELY(!glyphc)) return MS_FAILURE;
           ret = drawGlyphMarker(image, face, glyphc, p_x, p_y, s.scale, s.rotation, s.color, s.outlinecolor, s.outlinewidth);
         }
@@ -975,6 +975,7 @@ int msDrawLabelBounds(mapObj *map, imageObj *image, label_bounds *bnds, styleObj
   shape.numlines = 1;
   if(bnds->poly) {
     shape.line = bnds->poly;
+    return msDrawShadeSymbol(map,image,&shape,style,scalefactor);
   } else {
     pointObj pnts1[5];
     lineObj l;
@@ -984,9 +985,9 @@ int msDrawLabelBounds(mapObj *map, imageObj *image, label_bounds *bnds, styleObj
     pnts1[2].x = pnts1[3].x = bnds->bbox.maxx;
     pnts1[0].y = pnts1[3].y = pnts1[4].y = bnds->bbox.miny;
     pnts1[1].y = pnts1[2].y = bnds->bbox.maxy;
-    shape.line = &l;
+    shape.line = &l; // must return from this block
+    return msDrawShadeSymbol(map,image,&shape,style,scalefactor);
   }
-  return msDrawShadeSymbol(map,image,&shape,style,scalefactor);
 }
 
 int msDrawTextSymbol(mapObj *map, imageObj *image, pointObj labelPnt, textSymbolObj *ts)
@@ -1022,7 +1023,7 @@ int msDrawTextSymbol(mapObj *map, imageObj *image, pointObj labelPnt, textSymbol
     c = &ts->label->color;
   if(MS_VALID_COLOR(ts->label->outlinecolor))
     oc = &ts->label->outlinecolor;
-  ow = ts->label->outlinewidth * ts->scalefactor;
+  ow = MS_NINT((double)ts->label->outlinewidth * ((double)ts->textpath->glyph_size / (double)ts->label->size));
   if(!renderer->renderGlyphs) return MS_FAILURE;
   return renderer->renderGlyphs(image,ts->textpath,c,oc,ow);
   
@@ -1075,4 +1076,55 @@ int msDrawPieSlice(mapObj *map, imageObj *image, pointObj *p, styleObj *style, d
   msFreeShape(circle);
   msFree(circle);
   return status;
+}
+
+/*
+ * RFC 49 implementation
+ * if an outlinewidth is used:
+ *  - augment the style's width to account for the outline width
+ *  - swap the style color and outlinecolor
+ *  - draw the shape (the outline) in the first pass of the
+ *    caching mechanism
+ */
+
+void msOutlineRenderingPrepareStyle(styleObj *pStyle, mapObj *map, layerObj *layer, imageObj *image)
+{
+  colorObj tmp;
+
+  if (pStyle->outlinewidth > 0) {
+    /* adapt width (must take scalefactor into account) */
+    pStyle->width += (pStyle->outlinewidth / (layer->scalefactor/image->resolutionfactor)) * 2;
+    pStyle->minwidth += pStyle->outlinewidth * 2;
+    pStyle->maxwidth += pStyle->outlinewidth * 2;
+    pStyle->size += (pStyle->outlinewidth/layer->scalefactor*(map->resolution/map->defresolution));
+
+    /*swap color and outlinecolor*/
+    tmp = pStyle->color;
+    pStyle->color = pStyle->outlinecolor;
+    pStyle->outlinecolor = tmp;
+  }
+}
+
+/*
+ * RFC 49 implementation: switch back the styleobj to its
+ * original state, so the line fill will be drawn in the
+ * second pass of the caching mechanism
+ */
+
+void msOutlineRenderingRestoreStyle(styleObj *pStyle, mapObj *map, layerObj *layer, imageObj *image)
+{
+  colorObj tmp;
+
+  if (pStyle->outlinewidth > 0) {
+    /* reset widths to original state */
+    pStyle->width -= (pStyle->outlinewidth / (layer->scalefactor/image->resolutionfactor)) * 2;
+    pStyle->minwidth -= pStyle->outlinewidth * 2;
+    pStyle->maxwidth -= pStyle->outlinewidth * 2;
+    pStyle->size -= (pStyle->outlinewidth/layer->scalefactor*(map->resolution/map->defresolution));
+
+    /*reswap colors to original state*/
+    tmp = pStyle->color;
+    pStyle->color = pStyle->outlinecolor;
+    pStyle->outlinecolor = tmp;
+  }
 }

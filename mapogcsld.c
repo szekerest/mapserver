@@ -29,12 +29,11 @@
 #include "mapogcsld.h"
 #include "mapogcfilter.h"
 #include "mapserver.h"
+#include "mapows.h"
 
 #ifdef USE_OGR
 #include "cpl_string.h"
 #endif
-
-
 
 #define SLD_LINE_SYMBOL_NAME "sld_line_symbol"
 #define SLD_LINE_SYMBOL_DASH_NAME "sld_line_symbol_dash"
@@ -107,6 +106,7 @@ int msSLDApplySLDURL(mapObj *map, char *szURL, int iLayer,
         unlink(pszSLDTmpFile);
         msSetError(MS_WMSERR, "Could not open SLD %s and save it in a temporary file. Please make sure that the sld url is valid and that the temporary path is set. The temporary path can be defined for example by setting TMPPATH in the map file. Please check the MapServer documentation on temporary path settings.", "msSLDApplySLDURL", szURL);
       }
+      msFree(pszSLDTmpFile);
       if (pszSLDbuf)
         nStatus = msSLDApplySLD(map, pszSLDbuf, iLayer, pszStyleLayerName, ppszLayerNames);
     }
@@ -139,8 +139,7 @@ int msSLDApplySLDURL(mapObj *map, char *szURL, int iLayer,
 /*      they have the same name, copy the classes asscoaited with       */
 /*      the SLD layers onto the map layers.                             */
 /************************************************************************/
-int msSLDApplySLD(mapObj *map, char *psSLDXML, int iLayer,
-                  char *pszStyleLayerName, char **ppszLayerNames)
+int msSLDApplySLD(mapObj *map, char *psSLDXML, int iLayer, char *pszStyleLayerName, char **ppszLayerNames)
 {
 #if defined(USE_WMS_SVR) || defined (USE_WFS_SVR) || defined (USE_WCS_SVR) || defined(USE_SOS_SVR)
 
@@ -162,11 +161,14 @@ int msSLDApplySLD(mapObj *map, char *psSLDXML, int iLayer,
   char *pszTmp2 = NULL;
   char *pszBuffer = NULL;
   layerObj *lp = NULL;
-  char *pszSqlExpression=NULL;
-  FilterEncodingNode *psExpressionNode =NULL;
-  int bFailedExpression=0;
 
   pasLayers = msSLDParseSLD(map, psSLDXML, &nLayers);
+  if( pasLayers == NULL ) {
+    errorObj* psError = msGetErrorObj();
+    if( psError && psError->code != MS_NOERR )
+      return MS_FAILURE;
+  }
+
   /* -------------------------------------------------------------------- */
   /*      If the same layer is given more that once, we need to           */
   /*      duplicate it.                                                   */
@@ -327,8 +329,8 @@ int msSLDApplySLD(mapObj *map, char *psSLDXML, int iLayer,
 
           /* opacity for sld raster */
           if (GET_LAYER(map, i)->type == MS_LAYER_RASTER &&
-              pasLayers[j].opacity != -1)
-            GET_LAYER(map, i)->opacity = pasLayers[j].opacity;
+              pasLayers[i].compositer && pasLayers[j].compositer->opacity != 100)
+            msSetLayerOpacity(GET_LAYER(map, i), pasLayers[j].compositer->opacity);
 
           /* mark as auto-generate SLD */
           if (GET_LAYER(map, i)->connectiontype == MS_WMS)
@@ -396,53 +398,66 @@ int msSLDApplySLD(mapObj *map, char *psSLDXML, int iLayer,
               goto sld_cleanup;
             }
           } else {
+            lp = GET_LAYER(map, i);
+            
+            /* The SLD might have a FeatureTypeConstraint */
+            if( pasLayers[j].filter.type == MS_EXPRESSION )
+            {
+                if( lp->filter.string && lp->filter.type == MS_EXPRESSION )
+                {
+                    pszBuffer = msStringConcatenate(NULL, "((");
+                    pszBuffer = msStringConcatenate(pszBuffer, lp->filter.string);
+                    pszBuffer = msStringConcatenate(pszBuffer, ") AND (");
+                    pszBuffer = msStringConcatenate(pszBuffer, pasLayers[j].filter.string);
+                    pszBuffer = msStringConcatenate(pszBuffer, "))");
+                    msFreeExpression(&lp->filter);
+                    msInitExpression(&lp->filter);
+                    lp->filter.string = pszBuffer;
+                    lp->filter.type = MS_EXPRESSION;
+
+                    pszBuffer = NULL;
+                }
+                else
+                {
+                    msFreeExpression(&lp->filter);
+                    msInitExpression(&lp->filter);
+                    lp->filter.string = msStrdup(pasLayers[j].filter.string);
+                    lp->filter.type = MS_EXPRESSION;
+                }
+            }
+
             /*in some cases it would make sense to concatenate all the class
               expressions and use it to set the filter on the layer. This
               could increase performace. Will do it for db types layers #2840*/
-            lp = GET_LAYER(map, i);
-            if (lp->filter.string == NULL ||
-                (lp->filter.string && lp->filter.type == MS_EXPRESSION)) {
-              if (lp->connectiontype == MS_POSTGIS || lp->connectiontype ==  MS_ORACLESPATIAL ||
-                  lp->connectiontype == MS_SDE || lp->connectiontype == MS_PLUGIN) {
+            if (lp->filter.string == NULL || (lp->filter.string && lp->filter.type == MS_STRING && !lp->filteritem)) {
+              if (lp->connectiontype == MS_POSTGIS || lp->connectiontype ==  MS_ORACLESPATIAL || lp->connectiontype == MS_PLUGIN) {
                 if (lp->numclasses > 0) {
-                  /*check first that all classes have an expression type. That is
+                  /* check first that all classes have an expression type. That is
                     the only way we can concatenate them and set the filter
-                    expression*/
+                    expression */
                   for (k=0; k<lp->numclasses; k++) {
                     if (lp->class[k]->expression.type != MS_EXPRESSION)
                       break;
                   }
                   if (k == lp->numclasses) {
-                    bFailedExpression = 0;
                     for (k=0; k<lp->numclasses; k++) {
                       if (pszBuffer == NULL)
-                        snprintf(szTmp, sizeof(szTmp), "%s", "((");
+                        snprintf(szTmp, sizeof(szTmp), "%s", "(("); /* we a building a string expression, explicitly set type below */
                       else
                         snprintf(szTmp, sizeof(szTmp), "%s", " OR ");
 
-                      pszBuffer =msStringConcatenate(pszBuffer, szTmp);
-                      psExpressionNode = BuildExpressionTree(lp->class[k]->expression.string,NULL);
-                      if (psExpressionNode) {
-                        pszSqlExpression = FLTGetSQLExpression(psExpressionNode,lp);
-                        if (pszSqlExpression) {
-                          pszBuffer =
-                            msStringConcatenate(pszBuffer, pszSqlExpression);
-                          msFree(pszSqlExpression);
-                        } else {
-                          bFailedExpression =1;
-                          break;
-                        }
-                        FLTFreeFilterEncodingNode(psExpressionNode);
-                      } else {
-                        bFailedExpression =1;
-                        break;
-                      }
+                      pszBuffer = msStringConcatenate(pszBuffer, szTmp);
+                      pszBuffer = msStringConcatenate(pszBuffer, lp->class[k]->expression.string);
                     }
-                    if (!bFailedExpression) {
-                      snprintf(szTmp, sizeof(szTmp), "%s", "))");
-                      pszBuffer =msStringConcatenate(pszBuffer, szTmp);
-                      msLoadExpressionString(&lp->filter, pszBuffer);
-                    }
+
+                    snprintf(szTmp, sizeof(szTmp), "%s", "))");
+                    pszBuffer =msStringConcatenate(pszBuffer, szTmp);
+                    
+                    msFreeExpression(&lp->filter);
+                    msInitExpression(&lp->filter);
+                    lp->filter.string = msStrdup(pszBuffer);
+                    lp->filter.type = MS_EXPRESSION;
+
                     msFree(pszBuffer);
                     pszBuffer = NULL;
                   }
@@ -615,7 +630,15 @@ layerObj  *msSLDParseSLD(mapObj *map, char *psSLDXML, int *pnLayers)
       if (psName && psName->psChild &&  psName->psChild->pszValue)
         pasLayers[iLayer].name = msStrdup(psName->psChild->pszValue);
 
-      msSLDParseNamedLayer(psNamedLayer, &pasLayers[iLayer]);
+      if( msSLDParseNamedLayer(psNamedLayer, &pasLayers[iLayer]) != MS_SUCCESS ) {
+        int i;
+        for (i=0; i<=iLayer; i++)
+            freeLayer(&pasLayers[i]);
+        msFree(pasLayers);
+        nLayers = 0;
+        pasLayers = NULL;
+        break;
+      }
 
       psNamedLayer = psNamedLayer->psNext;
       iLayer++;
@@ -727,6 +750,79 @@ void  _SLDApplyRuleValues(CPLXMLNode *psRule, layerObj *psLayer,
 
 }
 
+/************************************************************************/
+/*                     msSLDGetCommonExpressionFromFilter               */
+/*                                                                      */
+/*      Get a commomn expression valid from the filter valid for the    */
+/*      temporary layer.                                                */
+/************************************************************************/
+static char* msSLDGetCommonExpressionFromFilter(CPLXMLNode* psFilter,
+                                                layerObj *psLayer)
+{
+    char *pszExpression = NULL;
+    CPLXMLNode *psTmpNextNode = NULL;
+    CPLXMLNode *psTmpNode = NULL;
+    FilterEncodingNode *psNode = NULL;
+    char *pszTmpFilter = NULL;
+    layerObj *psCurrentLayer = NULL;
+    const char *pszWmsName=NULL;
+    const char *key=NULL;
+
+    /* clone the tree and set the next node to null */
+    /* so we only have the Filter node */
+    psTmpNode = CPLCloneXMLTree(psFilter);
+    psTmpNextNode = psTmpNode->psNext;
+    psTmpNode->psNext = NULL;
+    pszTmpFilter = CPLSerializeXMLTree(psTmpNode);
+    psTmpNode->psNext = psTmpNextNode;
+    CPLDestroyXMLNode(psTmpNode);
+
+    if (pszTmpFilter) {
+        psNode = FLTParseFilterEncoding(pszTmpFilter);
+
+        CPLFree(pszTmpFilter);
+    }
+
+    if (psNode) {
+        int j;
+
+        /*preparse the filter for possible gml aliases set on the layer's metada:
+        "gml_NA3DESC_alias" "alias_name" and filter could be
+        <ogc:PropertyName>alias_name</ogc:PropertyName> #3079*/
+        for (j=0; j<psLayer->map->numlayers; j++) {
+            psCurrentLayer = GET_LAYER(psLayer->map, j);
+
+            pszWmsName = msOWSLookupMetadata(&(psCurrentLayer->metadata), "MO", "name");
+
+            if ((psCurrentLayer->name && psLayer->name &&
+                    strcasecmp(psCurrentLayer->name, psLayer->name) == 0) ||
+                (psCurrentLayer->group && psLayer->name &&
+                    strcasecmp(psCurrentLayer->group, psLayer->name) == 0) ||
+                (psLayer->name && pszWmsName &&
+                    strcasecmp(pszWmsName, psLayer->name) == 0))
+                break;
+        }
+        if (j < psLayer->map->numlayers) {
+            /*make sure that the tmp layer has all the metadata that
+            the orinal layer has, allowing to do parsing for
+            such things as gml_attribute_type #3052*/
+            while (1) {
+                key = msNextKeyFromHashTable(&psCurrentLayer->metadata, key);
+                if (!key)
+                    break;
+                else
+                    msInsertHashTable(&psLayer->metadata, key,
+                                    msLookupHashTable(&psCurrentLayer->metadata, key));
+            }
+            FLTPreParseFilterForAliasAndGroup(psNode, psLayer->map, j, "G");
+        }
+
+        pszExpression = FLTGetCommonExpression(psNode, psLayer);
+        FLTFreeFilterEncodingNode(psNode);
+    }
+    
+    return pszExpression;
+}
 
 /************************************************************************/
 /*                           msSLDParseNamedLayer                       */
@@ -738,15 +834,9 @@ int msSLDParseNamedLayer(CPLXMLNode *psRoot, layerObj *psLayer)
   CPLXMLNode *psFeatureTypeStyle, *psRule, *psUserStyle;
   CPLXMLNode *psSLDName = NULL, *psNamedStyle=NULL;
   CPLXMLNode *psElseFilter = NULL, *psFilter=NULL;
-  CPLXMLNode *psTmpNode = NULL;
-  FilterEncodingNode *psNode = NULL;
+  CPLXMLNode *psLayerFeatureConstraints = NULL;
   int nNewClasses=0, nClassBeforeFilter=0, nClassAfterFilter=0;
   int nClassAfterRule=0, nClassBeforeRule=0;
-  char *pszTmpFilter = NULL;
-  layerObj *psCurrentLayer = NULL;
-  const char *pszWmsName=NULL;
-  int j=0;
-  const char *key=NULL;
 
   if (!psRoot || !psLayer)
     return MS_FAILURE;
@@ -790,80 +880,24 @@ int msSLDParseNamedLayer(CPLXMLNode *psRoot, layerObj *psLayer)
           /*      NOTE : Spatial Filter is not supported.                         */
           /* -------------------------------------------------------------------- */
           psFilter = CPLGetXMLNode(psRule, "Filter");
-          if (psFilter && psFilter->psChild &&
-              psFilter->psChild->pszValue) {
-            CPLXMLNode *psTmpNextNode = NULL;
-            /* clone the tree and set the next node to null */
-            /* so we only have the Filter node */
-            psTmpNode = CPLCloneXMLTree(psFilter);
-            psTmpNextNode = psTmpNode->psNext;
-            psTmpNode->psNext = NULL;
-            pszTmpFilter = CPLSerializeXMLTree(psTmpNode);
-            psTmpNode->psNext = psTmpNextNode;
-            CPLDestroyXMLNode(psTmpNode);
-
-            if (pszTmpFilter) {
-              /* nTmp = strlen(psFilter->psChild->pszValue)+17; */
-              /* pszTmpFilter = malloc(sizeof(char)*nTmp); */
-              /* sprintf(pszTmpFilter,"<Filter>%s</Filter>", */
-              /* psFilter->psChild->pszValue); */
-              /* pszTmpFilter[nTmp-1]='\0'; */
-              psNode = FLTParseFilterEncoding(pszTmpFilter);
-
-              CPLFree(pszTmpFilter);
-            }
-
-            if (psNode) {
-              char *pszExpression = NULL;
-              int i;
-
-              /*preparse the filter for possible gml aliases set on the layer's metada:
-                "gml_NA3DESC_alias" "alias_name" and filter could be
-              <ogc:PropertyName>alias_name</ogc:PropertyName> #3079*/
-              for (j=0; j<psLayer->map->numlayers; j++) {
-                psCurrentLayer = GET_LAYER(psLayer->map, j);
-
-                pszWmsName = msOWSLookupMetadata(&(psCurrentLayer->metadata), "MO", "name");
-
-                if ((psCurrentLayer->name && psLayer->name &&
-                     strcasecmp(psCurrentLayer->name, psLayer->name) == 0) ||
-                    (psCurrentLayer->group && psLayer->name &&
-                     strcasecmp(psCurrentLayer->group, psLayer->name) == 0) ||
-                    (psLayer->name && pszWmsName &&
-                     strcasecmp(pszWmsName, psLayer->name) == 0))
-                  break;
-              }
-              if (j < psLayer->map->numlayers) {
-                /*make sure that the tmp layer has all the metadata that
-                  the orinal layer has, allowing to do parsing for
-                  such things as gml_attribute_type #3052*/
-                while (1) {
-                  key = msNextKeyFromHashTable(&psCurrentLayer->metadata, key);
-                  if (!key)
-                    break;
-                  else
-                    msInsertHashTable(&psLayer->metadata, key,
-                                      msLookupHashTable(&psCurrentLayer->metadata, key));
-                }
-                FLTPreParseFilterForAliasAndGroup(psNode, psLayer->map, j, "G");
-              }
-
-              pszExpression = FLTGetCommonExpression(psNode, psLayer);
-              FLTFreeFilterEncodingNode(psNode);
-              psNode = NULL;
-
-              if (pszExpression) {
+          if (psFilter && psFilter->psChild && psFilter->psChild->pszValue) {
+            char* pszExpression = msSLDGetCommonExpressionFromFilter(psFilter,
+                                                                     psLayer);
+            if (pszExpression) {
+                int i;
                 nNewClasses =
                   nClassAfterFilter - nClassBeforeFilter;
                 for (i=0; i<nNewClasses; i++) {
-                  msLoadExpressionString(&psLayer->
+                  expressionObj* exp = &(psLayer->
                                          class[psLayer->numclasses-1-i]->
-                                         expression, pszExpression);
+                                         expression);
+                  msFreeExpression(exp);
+                  msInitExpression(exp);
+                  exp->string = msStrdup(pszExpression);
+                  exp->type = MS_EXPRESSION;
                 }
                 msFree(pszExpression);
                 pszExpression = NULL;
-              }
-
             }
           }
           nClassAfterRule = psLayer->numclasses;
@@ -911,6 +945,47 @@ int msSLDParseNamedLayer(CPLXMLNode *psRoot, layerObj *psLayer)
       if (psSLDName && psSLDName->psChild &&  psSLDName->psChild->pszValue) {
         msFree(psLayer->classgroup);
         psLayer->classgroup = msStrdup(psSLDName->psChild->pszValue);
+      }
+    }
+  }
+
+  /* Deal with LayerFeatureConstraints */
+  psLayerFeatureConstraints = CPLGetXMLNode(psRoot, "LayerFeatureConstraints");
+  if( psLayerFeatureConstraints != NULL ) {
+    CPLXMLNode* psIter = psLayerFeatureConstraints->psChild;
+    CPLXMLNode* psFeatureTypeConstraint = NULL;
+    for(; psIter != NULL; psIter = psIter->psNext ) {
+      if( psIter->eType == CXT_Element &&
+            strcmp(psIter->pszValue, "FeatureTypeConstraint") == 0 )  {
+        if( psFeatureTypeConstraint == NULL ) {
+          psFeatureTypeConstraint = psIter;
+        } else {
+          msSetError(MS_WMSERR, "Only one single FeatureTypeConstraint element "
+                    "per LayerFeatureConstraints is supported", "");  
+          return MS_FAILURE;
+        }
+      }
+    }
+    if( psFeatureTypeConstraint != NULL ) {
+      if( CPLGetXMLNode(psFeatureTypeConstraint, "FeatureTypeName") != NULL ) {
+        msSetError(MS_WMSERR, "FeatureTypeName element is not "
+                    "supported in FeatureTypeConstraint", "");
+        return MS_FAILURE;
+      }
+      if( CPLGetXMLNode(psFeatureTypeConstraint, "Extent") != NULL ) {
+        msSetError(MS_WMSERR, "Extent element is not "
+                    "supported in FeatureTypeConstraint", "");
+        return MS_FAILURE;
+      }
+      psFilter = CPLGetXMLNode(psFeatureTypeConstraint, "Filter");
+      if (psFilter && psFilter->psChild && psFilter->psChild->pszValue) {
+        char* pszExpression = msSLDGetCommonExpressionFromFilter(psFilter,
+                                                                    psLayer);
+        if (pszExpression) {
+            msInitExpression(&psLayer->filter);
+            psLayer->filter.string = pszExpression;
+            psLayer->filter.type = MS_EXPRESSION;
+        }
       }
     }
   }
@@ -1512,7 +1587,7 @@ int msSLDParseGraphicFillOrStroke(CPLXMLNode *psRoot,
                                   char *pszDashValue,
                                   styleObj *psStyle, mapObj *map)
 {
-  CPLXMLNode  *psCssParam, *psGraphic, *psExternalGraphic, *psMark, *psSize;
+  CPLXMLNode  *psCssParam, *psGraphic, *psExternalGraphic, *psMark, *psSize, *psGap, *psInitialGap;
   CPLXMLNode *psWellKnownName, *psStroke, *psFill;
   CPLXMLNode *psDisplacement=NULL, *psDisplacementX=NULL, *psDisplacementY=NULL;
   CPLXMLNode *psOpacity=NULL, *psRotation=NULL;
@@ -1734,6 +1809,14 @@ int msSLDParseGraphicFillOrStroke(CPLXMLNode *psRoot,
         msSLDParseExternalGraphic(psExternalGraphic, psStyle, map);
     }
     msFree(pszSymbolName);
+  }
+  psGap =  CPLGetXMLNode(psRoot, "Gap");
+  if (psGap && psGap->psChild && psGap->psChild->pszValue) {
+    psStyle->gap = atof(psGap->psChild->pszValue);
+  }
+  psInitialGap =  CPLGetXMLNode(psRoot, "InitialGap");
+  if (psInitialGap && psInitialGap->psChild && psInitialGap->psChild->pszValue) {
+    psStyle->initialgap = atof(psInitialGap->psChild->pszValue);
   }
 
   return MS_SUCCESS;
@@ -2376,14 +2459,6 @@ int msSLDParseRasterSymbolizer(CPLXMLNode *psRoot, layerObj *psLayer)
   if (!psRoot || !psLayer)
     return MS_FAILURE;
 
-  /* ==================================================================== */
-  /*      The default opacity value is 0 : we set it here to -1           */
-  /*      so that when testing the values in msSLDApplySLD (to be         */
-  /*      applied on the layer), we can assume that a value of 0 comes    */
-  /*      from the sld.                                                   */
-  /* ==================================================================== */
-  psLayer->opacity = -1;
-
   psOpacity = CPLGetXMLNode(psRoot, "Opacity");
   if (psOpacity) {
     if (psOpacity->psChild && psOpacity->psChild->pszValue)
@@ -2391,7 +2466,7 @@ int msSLDParseRasterSymbolizer(CPLXMLNode *psRoot, layerObj *psLayer)
 
     /* values in sld goes from 0.0 (for transparent) to 1.0 (for full opacity); */
     if (dfOpacity >=0.0 && dfOpacity <=1.0)
-      psLayer->opacity = (int)(dfOpacity * 100);
+      msSetLayerOpacity(psLayer,(int)(dfOpacity * 100));
     else {
       msSetError(MS_WMSERR, "Invalid opacity value. Values should be between 0.0 and 1.0", "msSLDParseRasterSymbolizer()");
       return MS_FAILURE;
@@ -2648,7 +2723,6 @@ int msSLDParseTextParams(CPLXMLNode *psRoot, layerObj *psLayer,
 {
   char szFontName[100];
   double  dfFontSize = 10;
-  int bFontSet = 0;
 
   CPLXMLNode *psLabel=NULL, *psFont=NULL;
   CPLXMLNode *psCssParam = NULL;
@@ -2801,7 +2875,6 @@ int msSLDParseTextParams(CPLXMLNode *psRoot, layerObj *psLayer,
         }
 
         if ((msLookupHashTable(&(psLayer->map->fontset.fonts), szFontName) !=NULL)) {
-          bFontSet = 1;
           psLabelObj->font = msStrdup(szFontName);
         }
       }
@@ -3539,6 +3612,15 @@ char *msSLDGenerateLineSLD(styleObj *psStyle, layerObj *psLayer, int nVersion)
 
     pszSLD = msStringConcatenate(pszSLD, pszGraphicSLD);
 
+    if(nVersion >= OWS_1_1_0) {
+      if(psStyle->gap > 0) {
+        snprintf(szTmp, sizeof(szTmp), "<%sGap>%.2f</%sGap>\n",  sNameSpace,psStyle->gap,sNameSpace);
+      }
+      if(psStyle->initialgap > 0) {
+        snprintf(szTmp, sizeof(szTmp), "<%sInitialGap>%.2f</%sInitialGap>\n",  sNameSpace,psStyle->initialgap,sNameSpace);
+      }
+    }
+
     snprintf(szTmp, sizeof(szTmp), "</%sGraphicStroke>\n",  sNameSpace);
 
     pszSLD = msStringConcatenate(pszSLD, szTmp);
@@ -3839,7 +3921,7 @@ char *msSLDGenerateTextSLD(classObj *psClass, layerObj *psLayer, int nVersion)
     snprintf(szTmp, sizeof(szTmp), "<%sTextSymbolizer>\n",  sNameSpace);
     pszSLD = msStringConcatenate(pszSLD, szTmp);
 
-    snprintf(szTmp, sizeof(szTmp), "<%sLabel>%s</%sLabel>\n",  sNameSpace,
+    snprintf(szTmp, sizeof(szTmp), "<%sLabel><ogc:PropertyName>%s</ogc:PropertyName></%sLabel>\n",  sNameSpace,
              psLayer->labelitem, sNameSpace);
     pszSLD = msStringConcatenate(pszSLD, szTmp);
 
@@ -4723,16 +4805,12 @@ FilterEncodingNode *BuildExpressionTree(char *pszExpression,
 {
   int nLength = 0;
   int nOperators=0;
-  char *pszFinalExpression = NULL;
   char *pszComparionValue=NULL, *pszAttibuteName=NULL;
   char *pszAttibuteValue=NULL;
   char *pszLeftExpression=NULL, *pszRightExpression=NULL, *pszOperator=NULL;
 
   if (!pszExpression || (nLength = strlen(pszExpression)) <=0)
     return NULL;
-
-  pszFinalExpression = (char *)malloc(sizeof(char)*(nLength+1));
-  pszFinalExpression[0] = '\0';
 
   /* -------------------------------------------------------------------- */
   /*      First we check how many logical operators are there :           */
@@ -4854,7 +4932,6 @@ FilterEncodingNode *BuildExpressionTree(char *pszExpression,
 
     return psNode;
   } else {
-    msFree(pszFinalExpression);
     return NULL;
   }
 }
@@ -5086,8 +5163,6 @@ char *msSLDConvertRegexExpToOgcIsLike(char *pszRegex)
   return msStrdup(szBuffer);
 }
 
-
-
 /************************************************************************/
 /*                              msSLDGetFilter                          */
 /*                                                                      */
@@ -5114,8 +5189,7 @@ char *msSLDGetFilter(classObj *psClass, const char *pszWfsFilter)
         pszFilter = msStrdup(szBuffer);
       }
     } else if (psClass->expression.type == MS_EXPRESSION) {
-      pszFilter = msSLDParseLogicalExpression(psClass->expression.string,
-                                              pszWfsFilter);
+      pszFilter = msSLDParseLogicalExpression(psClass->expression.string, pszWfsFilter);
     } else if (psClass->expression.type == MS_REGEX) {
       if (psClass->layer && psClass->layer->classitem && psClass->expression.string) {
         pszOgcFilter = msSLDConvertRegexExpToOgcIsLike(psClass->expression.string);

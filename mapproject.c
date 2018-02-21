@@ -46,7 +46,7 @@ static int msTestNeedWrap( pointObj pt1, pointObj pt2, pointObj pt2_geo,
 
 /************************************************************************/
 /*                           int msIsAxisInverted                       */
-/*      Check to see if we shoud invert the axis.                       */
+/*      Check to see if we should invert the axis.                       */
 /*                                                                      */
 /************************************************************************/
 int msIsAxisInverted(int epsg_code)
@@ -254,10 +254,18 @@ static int msProjectSegment( projectionObj *in, projectionObj *out,
 
     testPoint = midPoint;
 
-    if( msProjectPoint( in, out, &testPoint ) == MS_FAILURE )
+    if( msProjectPoint( in, out, &testPoint ) == MS_FAILURE ) {
+      if (midPoint.x == subEnd.x && midPoint.y == subEnd.y)
+        return MS_FAILURE; /* break infinite loop */
+
       subEnd = midPoint;
-    else
+    }
+    else {
+      if (midPoint.x == subStart.x && midPoint.y == subStart.y)
+        return MS_FAILURE; /* break infinite loop */
+
       subStart = midPoint;
+    }
   }
 
   /* -------------------------------------------------------------------- */
@@ -292,7 +300,7 @@ msProjectShapeLine(projectionObj *in, projectionObj *out,
 
 {
   int i;
-  pointObj  lastPoint, thisPoint, wrkPoint, firstPoint;
+  pointObj  lastPoint, thisPoint, wrkPoint;
   lineObj *line = shape->line + line_index;
   lineObj *line_out = line;
   int valid_flag = 0; /* 1=true, -1=false, 0=unknown */
@@ -342,9 +350,6 @@ msProjectShapeLine(projectionObj *in, projectionObj *out,
 
   line->numpoints = 0;
 
-  if( numpoints_in > 0 )
-    firstPoint = line->point[0];
-
   memset( &lastPoint, 0, sizeof(lastPoint) );
 
   /* -------------------------------------------------------------------- */
@@ -364,13 +369,13 @@ msProjectShapeLine(projectionObj *in, projectionObj *out,
       pointObj pt1Geo;
 
       if( line_out->numpoints > 0 )
-        pt1Geo = line_out->point[0];
+        pt1Geo = line_out->point[line_out->numpoints-1];
       else
         pt1Geo = wrkPoint; /* this is a cop out */
 
       dist = wrkPoint.x - pt1Geo.x;
       if( fabs(dist) > 180.0
-          && msTestNeedWrap( thisPoint, firstPoint,
+          && msTestNeedWrap( thisPoint, lastPoint,
                              pt1Geo, in, out ) ) {
         if( dist > 0.0 )
           wrkPoint.x -= 360.0;
@@ -874,6 +879,14 @@ msProjectRectAsPolygon(projectionObj *in, projectionObj *out,
 
   msAddLineDirectly( &polygonObj, &ring );
 
+#ifdef notdef
+  FILE *wkt = fopen("/tmp/www-before.wkt","w");
+  char *tmp = msShapeToWKT(&polygonObj);
+  fprintf(wkt,"%s\n", tmp);
+  free(tmp);
+  fclose(wkt);
+#endif
+
   /* -------------------------------------------------------------------- */
   /*      Attempt to reproject.                                           */
   /* -------------------------------------------------------------------- */
@@ -884,6 +897,14 @@ msProjectRectAsPolygon(projectionObj *in, projectionObj *out,
     msFreeShape( &polygonObj );
     return msProjectRectGrid( in, out, rect );
   }
+
+#ifdef notdef
+  wkt = fopen("/tmp/www-after.wkt","w");
+  tmp = msShapeToWKT(&polygonObj);
+  fprintf(wkt,"%s\n", tmp);
+  free(tmp);
+  fclose(wkt);
+#endif
 
   /* -------------------------------------------------------------------- */
   /*      Collect bounds.                                                 */
@@ -930,9 +951,107 @@ int msProjectRect(projectionObj *in, projectionObj *out, rectObj *rect)
 #ifdef notdef
   return msProjectRectTraditionalEdge( in, out, rect );
 #else
-  return msProjectRectAsPolygon( in, out, rect );
+  char *over = "+over";
+  int ret;
+  projectionObj in_over,out_over,*inp,*outp;
+  /* 
+   * Issue #4892: When projecting a rectangle we do not want proj to wrap resulting
+   * coordinates around the dateline, as in practice a requested bounding box of
+   * -22.000.000, -YYY, 22.000.000, YYY should be projected as
+   * -190,-YYY,190,YYY rather than 170,-YYY,-170,YYY as would happen when wrapping (and
+   *  vice-versa when projecting from lonlat to metric).
+   *  To enforce this, we clone the input projections and add the "+over" proj 
+   *  parameter in order to disable dateline wrapping.
+   */ 
+  if(out) {
+    msInitProjection(&out_over);
+    msCopyProjectionExtended(&out_over,out,&over,1);
+    outp = &out_over;
+  } else {
+    outp = out;
+  }
+  if(in) {
+    msInitProjection(&in_over);
+    msCopyProjectionExtended(&in_over,in,&over,1);
+    inp = &in_over;
+  } else {
+    inp = in;
+  }
+  ret = msProjectRectAsPolygon(inp,outp, rect );
+  if(in)
+    msFreeProjection(&in_over);
+  if(out)
+    msFreeProjection(&out_over);
+  return ret;
 #endif
 }
+
+#ifdef USE_PROJ
+static int msProjectSortString(const void* firstelt, const void* secondelt)
+{
+    char* firststr = *(char**)firstelt;
+    char* secondstr = *(char**)secondelt;
+    return strcmp(firststr, secondstr);
+}
+
+/************************************************************************/
+/*                        msGetProjectNormalized()                      */
+/************************************************************************/
+
+static projectionObj* msGetProjectNormalized( const projectionObj* p )
+{
+  int i;
+  char* pszNewProj4Def;
+  projectionObj* pnew;
+
+  pnew = (projectionObj*)msSmallMalloc(sizeof(projectionObj));
+  msInitProjection(pnew);
+  msCopyProjection(pnew, (projectionObj*)p);
+
+  if(p->proj == NULL )
+      return pnew;
+
+  /* Normalize definition so that msProjectDiffers() works better */
+  pszNewProj4Def = pj_get_def( p->proj, 0 );
+  msFreeCharArray(pnew->args, pnew->numargs);
+  pnew->args = msStringSplit(pszNewProj4Def,'+', &pnew->numargs);
+  for(i = 0; i < pnew->numargs; i++)
+  {
+      /* Remove trailing space */
+      if( strlen(pnew->args[i]) > 0 && pnew->args[i][strlen(pnew->args[i])-1] == ' ' )
+          pnew->args[i][strlen(pnew->args[i])-1] = '\0';
+      /* Remove spurious no_defs or init= */
+      if( strcmp(pnew->args[i], "no_defs") == 0 ||
+          strncmp(pnew->args[i], "init=", 5) == 0 )
+      {
+          if( i < pnew->numargs - 1 )
+          {
+              msFree(pnew->args[i]);
+              memmove(pnew->args + i, pnew->args + i + 1,
+                      sizeof(char*) * (pnew->numargs - 1 -i ));
+          }
+          else 
+          {
+              msFree(pnew->args[i]);
+          }
+          pnew->numargs --;
+          i --;
+          continue;
+      }
+  }
+  /* Sort the strings so they can be compared */
+  qsort(pnew->args, pnew->numargs, sizeof(char*), msProjectSortString);
+  /*{
+      fprintf(stderr, "'%s' =\n", pszNewProj4Def);
+      for(i = 0; i < p->numargs; i++)
+          fprintf(stderr, "'%s' ", p->args[i]);
+      fprintf(stderr, "\n");
+  }*/
+  pj_dalloc(pszNewProj4Def);
+  
+  return pnew;
+}
+#endif /* USE_PROJ */
 
 /************************************************************************/
 /*                        msProjectionsDiffer()                         */
@@ -949,7 +1068,7 @@ int msProjectRect(projectionObj *in, projectionObj *out, rectObj *rect)
 ** has no arguments, since reprojection won't work anyways.
 */
 
-int msProjectionsDiffer( projectionObj *proj1, projectionObj *proj2 )
+static int msProjectionsDifferInternal( projectionObj *proj1, projectionObj *proj2 )
 
 {
   int   i;
@@ -971,6 +1090,31 @@ int msProjectionsDiffer( projectionObj *proj1, projectionObj *proj2 )
   }
 
   return MS_FALSE;
+}
+
+int msProjectionsDiffer( projectionObj *proj1, projectionObj *proj2 )
+{
+#ifdef USE_PROJ
+    int ret;
+
+    ret = msProjectionsDifferInternal(proj1, proj2); 
+    if( ret ) 
+    {
+        projectionObj* p1normalized;
+        projectionObj* p2normalized;
+
+        p1normalized = msGetProjectNormalized( proj1 );
+        p2normalized = msGetProjectNormalized( proj2 );
+        ret = msProjectionsDifferInternal(p1normalized, p2normalized);
+        msFreeProjection(p1normalized);
+        msFree(p1normalized);
+        msFreeProjection(p2normalized);
+        msFree(p2normalized);
+    }
+    return ret;
+#else
+    return msProjectionsDifferInternal(proj1, proj2);
+#endif
 }
 
 /************************************************************************/
@@ -1104,6 +1248,18 @@ static const char *msProjFinder( const char *filename)
   return last_filename;
 }
 #endif /* def USE_PROJ */
+
+/************************************************************************/
+/*                       msProjLibInitFromEnv()                         */
+/************************************************************************/
+void msProjLibInitFromEnv()
+{
+  const char *val;
+
+  if( (val=getenv( "PROJ_LIB" )) != NULL ) {
+    msSetPROJ_LIB(val, NULL);
+  }
+}
 
 /************************************************************************/
 /*                           msSetPROJ_LIB()                            */

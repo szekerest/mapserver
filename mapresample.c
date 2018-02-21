@@ -33,11 +33,6 @@
 
 
 
-#ifndef MAX
-#  define MIN(a,b)      ((a<b) ? a : b)
-#  define MAX(a,b)      ((a>b) ? a : b)
-#endif
-
 #define SKIP_MASK(x,y) (mask_rb && !*(mask_rb->data.rgba.a+(y)*mask_rb->data.rgba.row_step+(x)*mask_rb->data.rgba.pixel_step))
 
 /************************************************************************/
@@ -319,7 +314,7 @@ msBilinearRasterResampler( imageObj *psSrcImage, rasterBufferObj *src_rb,
   int   nSrcYSize = psSrcImage->height;
   int   nFailedPoints = 0, nSetPoints = 0;
   double     *padfPixelSum;
-  int         bandCount = MAX(4,psSrcImage->format->bands);
+  int         bandCount = MS_MAX(4,psSrcImage->format->bands);
 
   padfPixelSum = (double *) msSmallMalloc(sizeof(double) * bandCount);
 
@@ -369,10 +364,10 @@ msBilinearRasterResampler( imageObj *psSrcImage, rasterBufferObj *src_rb,
         continue;
 
       /* Trim in stuff one pixel off the edge */
-      nSrcX = MAX(nSrcX,0);
-      nSrcY = MAX(nSrcY,0);
-      nSrcX2 = MIN(nSrcX2,nSrcXSize-1);
-      nSrcY2 = MIN(nSrcY2,nSrcYSize-1);
+      nSrcX = MS_MAX(nSrcX,0);
+      nSrcY = MS_MAX(nSrcY,0);
+      nSrcX2 = MS_MIN(nSrcX2,nSrcXSize-1);
+      nSrcY2 = MS_MIN(nSrcY2,nSrcYSize-1);
 
       memset( padfPixelSum, 0, sizeof(double) * bandCount);
 
@@ -395,9 +390,6 @@ msBilinearRasterResampler( imageObj *psSrcImage, rasterBufferObj *src_rb,
       if( dfWeightSum == 0.0 )
         continue;
 
-      for( i = 0; i < bandCount; i++ )
-        padfPixelSum[i] /= dfWeightSum;
-
       if( MS_RENDERER_PLUGIN(psSrcImage->format) ) {
         assert(src_rb && dst_rb);
         assert( src_rb->type == MS_BUFFER_BYTE_RGBA );
@@ -410,10 +402,10 @@ msBilinearRasterResampler( imageObj *psSrcImage, rasterBufferObj *src_rb,
           int dst_rb_off = nDstX * dst_rb->data.rgba.pixel_step + nDstY * dst_rb->data.rgba.row_step;
           unsigned char red, green, blue, alpha;
 
-          red   = (unsigned char) MAX(0,MIN(255,padfPixelSum[0]));
-          green = (unsigned char) MAX(0,MIN(255,padfPixelSum[1]));
-          blue  = (unsigned char) MAX(0,MIN(255,padfPixelSum[2]));
-          alpha = (unsigned char)MAX(0,MIN(255,255.5*dfWeightSum));
+          red   = (unsigned char) MS_MAX(0,MS_MIN(255,padfPixelSum[0]));
+          green = (unsigned char) MS_MAX(0,MS_MIN(255,padfPixelSum[1]));
+          blue  = (unsigned char) MS_MAX(0,MS_MIN(255,padfPixelSum[2]));
+          alpha = (unsigned char)MS_MAX(0,MS_MIN(255,255.5*dfWeightSum));
 
           msAlphaBlendPM( red, green, blue, alpha,
                           dst_rb->data.rgba.r + dst_rb_off,
@@ -424,6 +416,9 @@ msBilinearRasterResampler( imageObj *psSrcImage, rasterBufferObj *src_rb,
       } else if( MS_RENDERER_RAWDATA(psSrcImage->format) ) {
         int band;
         int dst_off = nDstX + nDstY * psDstImage->width;
+
+        for( i = 0; i < bandCount; i++ )
+            padfPixelSum[i] /= dfWeightSum;
 
         MS_SET_BIT(psDstImage->img_mask,dst_off);
 
@@ -436,7 +431,7 @@ msBilinearRasterResampler( imageObj *psSrcImage, rasterBufferObj *src_rb,
               = (float) padfPixelSum[band];
           } else if( psSrcImage->format->imagemode == MS_IMAGEMODE_BYTE ) {
             psDstImage->img.raw_byte[dst_off]
-              = (unsigned char)MAX(0,MIN(255,padfPixelSum[band]));
+              = (unsigned char)MS_MAX(0,MS_MIN(255,padfPixelSum[band]));
           }
 
           dst_off += psDstImage->width*psDstImage->height;
@@ -489,14 +484,14 @@ msAverageSample( imageObj *psSrcImage, rasterBufferObj *src_rb,
   for( iY = nYMin; iY < nYMax; iY++ ) {
     double dfYCellMin, dfYCellMax;
 
-    dfYCellMin = MAX(iY,dfYMin);
-    dfYCellMax = MIN(iY+1,dfYMax);
+    dfYCellMin = MS_MAX(iY,dfYMin);
+    dfYCellMax = MS_MIN(iY+1,dfYMax);
 
     for( iX = nXMin; iX < nXMax; iX++ ) {
       double dfXCellMin, dfXCellMax, dfWeight;
 
-      dfXCellMin = MAX(iX,dfXMin);
-      dfXCellMax = MIN(iX+1,dfXMax);
+      dfXCellMin = MS_MAX(iX,dfXMin);
+      dfXCellMax = MS_MIN(iX+1,dfXMax);
 
       dfWeight = (dfXCellMax-dfXCellMin) * (dfYCellMax-dfYCellMin);
 
@@ -537,7 +532,7 @@ msAverageRasterResampler( imageObj *psSrcImage, rasterBufferObj *src_rb,
   int   nFailedPoints = 0, nSetPoints = 0;
   double     *padfPixelSum;
 
-  int         bandCount = MAX(4,psSrcImage->format->bands);
+  int         bandCount = MS_MAX(4,psSrcImage->format->bands);
 
   padfPixelSum = (double *) msSmallMalloc(sizeof(double) * bandCount);
 
@@ -573,19 +568,19 @@ msAverageRasterResampler( imageObj *psSrcImage, rasterBufferObj *src_rb,
         continue;
       }
 
-      dfXMin = MIN(MIN(x1[nDstX],x1[nDstX+1]),
-                   MIN(x2[nDstX],x2[nDstX+1]));
-      dfYMin = MIN(MIN(y1[nDstX],y1[nDstX+1]),
-                   MIN(y2[nDstX],y2[nDstX+1]));
-      dfXMax = MAX(MAX(x1[nDstX],x1[nDstX+1]),
-                   MAX(x2[nDstX],x2[nDstX+1]));
-      dfYMax = MAX(MAX(y1[nDstX],y1[nDstX+1]),
-                   MAX(y2[nDstX],y2[nDstX+1]));
+      dfXMin = MS_MIN(MS_MIN(x1[nDstX],x1[nDstX+1]),
+                   MS_MIN(x2[nDstX],x2[nDstX+1]));
+      dfYMin = MS_MIN(MS_MIN(y1[nDstX],y1[nDstX+1]),
+                   MS_MIN(y2[nDstX],y2[nDstX+1]));
+      dfXMax = MS_MAX(MS_MAX(x1[nDstX],x1[nDstX+1]),
+                   MS_MAX(x2[nDstX],x2[nDstX+1]));
+      dfYMax = MS_MAX(MS_MAX(y1[nDstX],y1[nDstX+1]),
+                   MS_MAX(y2[nDstX],y2[nDstX+1]));
 
-      dfXMin = MIN(MAX(dfXMin,0),psSrcImage->width+1);
-      dfYMin = MIN(MAX(dfYMin,0),psSrcImage->height+1);
-      dfXMax = MIN(MAX(-1,dfXMax),psSrcImage->width);
-      dfYMax = MIN(MAX(-1,dfYMax),psSrcImage->height);
+      dfXMin = MS_MIN(MS_MAX(dfXMin,0),psSrcImage->width+1);
+      dfYMin = MS_MIN(MS_MAX(dfYMin,0),psSrcImage->height+1);
+      dfXMax = MS_MIN(MS_MAX(-1,dfXMax),psSrcImage->width);
+      dfYMax = MS_MIN(MS_MAX(-1,dfYMax),psSrcImage->height);
 
       memset( padfPixelSum, 0, sizeof(double)*bandCount );
 
@@ -605,13 +600,13 @@ msAverageRasterResampler( imageObj *psSrcImage, rasterBufferObj *src_rb,
           unsigned char red, green, blue, alpha;
 
           red   = (unsigned char)
-                  MAX(0,MIN(255,padfPixelSum[0]+0.5));
+                  MS_MAX(0,MS_MIN(255,padfPixelSum[0]+0.5));
           green = (unsigned char)
-                  MAX(0,MIN(255,padfPixelSum[1]+0.5));
+                  MS_MAX(0,MS_MIN(255,padfPixelSum[1]+0.5));
           blue  = (unsigned char)
-                  MAX(0,MIN(255,padfPixelSum[2]+0.5));
+                  MS_MAX(0,MS_MIN(255,padfPixelSum[2]+0.5));
           alpha = (unsigned char)
-                  MAX(0,MIN(255,255*dfAlpha01+0.5));
+                  MS_MAX(0,MS_MIN(255,255*dfAlpha01+0.5));
 
           RB_MIX_PIXEL(dst_rb,nDstX,nDstY,
                        red, green, blue, alpha );
@@ -1121,11 +1116,112 @@ static int msTransformMapToSource( int nDstXSize, int nDstYSize,
       psSrcExtent->miny = psSrcExtent->maxy = y_out;
       bOutInit = 1;
     } else {
-      psSrcExtent->minx = MIN(psSrcExtent->minx, x_out);
-      psSrcExtent->maxx = MAX(psSrcExtent->maxx, x_out);
-      psSrcExtent->miny = MIN(psSrcExtent->miny, y_out);
-      psSrcExtent->maxy = MAX(psSrcExtent->maxy, y_out);
+      psSrcExtent->minx = MS_MIN(psSrcExtent->minx, x_out);
+      psSrcExtent->maxx = MS_MAX(psSrcExtent->maxx, x_out);
+      psSrcExtent->miny = MS_MIN(psSrcExtent->miny, y_out);
+      psSrcExtent->maxy = MS_MAX(psSrcExtent->maxy, y_out);
     }
+  }
+
+  /* -------------------------------------------------------------------- */
+  /*      Deal with discontinuities related to lon_wrap=XXX in source     */
+  /*      projection. In that case we must check if the points at         */
+  /*      lon_wrap +/- 180deg are in the output raster.                   */
+  /* -------------------------------------------------------------------- */
+  if( bOutInit && pj_is_latlong(psSrcProj->proj) )
+  {
+      int bHasLonWrap = MS_FALSE;
+      double dfLonWrap = 0;
+      for( i = 0; i < psSrcProj->numargs; i++ )
+      {
+          if( strncmp(psSrcProj->args[i], "lon_wrap=",
+                      strlen("lon_wrap=")) == 0 )
+          {
+              bHasLonWrap = MS_TRUE;
+              dfLonWrap = atof( psSrcProj->args[i] + strlen("lon_wrap=") );
+              break;
+          }
+      }
+
+      if( bHasLonWrap )
+      {
+          double x2[2], y2[2], z2[2];
+          int nCountY = 0;
+          double dfY = 0.0;
+          double dfXMinOut = 0.0;
+          double dfYMinOut = 0.0;
+          double dfXMaxOut = 0.0;
+          double dfYMaxOut = 0.0;
+
+          /* Find out average y coordinate in src projection */
+          for( i = 0; i < nSamples; i++ ) {
+              if( y[i] != HUGE_VAL ) {
+                  dfY += y[i];
+                  nCountY ++;
+              }
+          }
+          dfY /= nCountY;
+
+          /* Compute bounds of output raster */
+          for( i = 0; i < 4; i ++ )
+          {
+              double dfX = adfDstGeoTransform[0] +
+                ((i == 1 || i == 2) ? nDstXSize : 0) * adfDstGeoTransform[1] +
+                ((i == 1 || i == 3 ) ? nDstYSize : 0) * adfDstGeoTransform[2];
+              double dfY = adfDstGeoTransform[3] +
+                ((i == 1 || i == 2) ? nDstXSize : 0) * adfDstGeoTransform[4] +
+                ((i == 1 || i == 3 ) ? nDstYSize : 0) * adfDstGeoTransform[5];
+              if( i == 0 || dfX < dfXMinOut ) dfXMinOut = dfX;
+              if( i == 0 || dfY < dfYMinOut ) dfYMinOut = dfY;
+              if( i == 0 || dfX > dfXMaxOut ) dfXMaxOut = dfX;
+              if( i == 0 || dfY > dfYMaxOut ) dfYMaxOut = dfY;
+          }
+
+          x2[0] = dfLonWrap-180+1e-7;
+          y2[0] = dfY;
+          z2[0] = 0.0;
+
+          x2[1] = dfLonWrap+180-1e-7;
+          y2[1] = dfY;
+          z2[1] = 0.0;
+
+          msAcquireLock( TLOCK_PROJ );
+          pj_transform( psSrcProj->proj, psDstProj->proj,
+                        2, 1, x2, y2, z2 );
+          msReleaseLock( TLOCK_PROJ );
+
+          if( x2[0] >= dfXMinOut && x2[0] <= dfXMaxOut &&
+              y2[0] >= dfYMinOut && y2[0] <= dfYMaxOut )
+          {
+                double x_out =      adfInvSrcGeoTransform[0]
+                            +   (dfLonWrap-180)*adfInvSrcGeoTransform[1]
+                            +   dfY*adfInvSrcGeoTransform[2];
+                double y_out =      adfInvSrcGeoTransform[3]
+                            +   (dfLonWrap-180)*adfInvSrcGeoTransform[4]
+                            +   dfY*adfInvSrcGeoTransform[5];
+
+                psSrcExtent->minx = MS_MIN(psSrcExtent->minx, x_out);
+                psSrcExtent->maxx = MS_MAX(psSrcExtent->maxx, x_out);
+                psSrcExtent->miny = MS_MIN(psSrcExtent->miny, y_out);
+                psSrcExtent->maxy = MS_MAX(psSrcExtent->maxy, y_out);
+          }
+
+          if( x2[1] >= dfXMinOut && x2[1] <= dfXMaxOut &&
+              x2[1] >= dfYMinOut && y2[1] <= dfYMaxOut )
+          {
+                double x_out =      adfInvSrcGeoTransform[0]
+                            +   (dfLonWrap+180)*adfInvSrcGeoTransform[1]
+                            +   dfY*adfInvSrcGeoTransform[2];
+                double y_out =      adfInvSrcGeoTransform[3]
+                            +   (dfLonWrap+180)*adfInvSrcGeoTransform[4]
+                            +   dfY*adfInvSrcGeoTransform[5];
+
+                psSrcExtent->minx = MS_MIN(psSrcExtent->minx, x_out);
+                psSrcExtent->maxx = MS_MAX(psSrcExtent->maxx, x_out);
+                psSrcExtent->miny = MS_MIN(psSrcExtent->miny, y_out);
+                psSrcExtent->maxy = MS_MAX(psSrcExtent->maxy, y_out);
+          }
+      }
   }
 
   if( !bOutInit )
@@ -1141,10 +1237,10 @@ static int msTransformMapToSource( int nDstXSize, int nDstYSize,
     int nGrowAmountY = (int)
                        (psSrcExtent->maxy - psSrcExtent->miny)/EDGE_STEPS + 1;
 
-    psSrcExtent->minx = MAX(psSrcExtent->minx - nGrowAmountX,0);
-    psSrcExtent->miny = MAX(psSrcExtent->miny - nGrowAmountY,0);
-    psSrcExtent->maxx = MIN(psSrcExtent->maxx + nGrowAmountX,nSrcXSize);
-    psSrcExtent->maxy = MIN(psSrcExtent->maxy + nGrowAmountY,nSrcYSize);
+    psSrcExtent->minx = MS_MAX(psSrcExtent->minx - nGrowAmountX,0);
+    psSrcExtent->miny = MS_MAX(psSrcExtent->miny - nGrowAmountY,0);
+    psSrcExtent->maxx = MS_MIN(psSrcExtent->maxx + nGrowAmountX,nSrcXSize);
+    psSrcExtent->maxy = MS_MIN(psSrcExtent->maxy + nGrowAmountY,nSrcYSize);
   }
 
   return MS_TRUE;
@@ -1185,6 +1281,7 @@ int msResampleGDALToMap( mapObj *map, layerObj *layer, imageObj *image,
   int         nLoadImgXSize, nLoadImgYSize;
   double      dfOversampleRatio;
   rasterBufferObj src_rb, *psrc_rb = NULL, *mask_rb = NULL;
+  int         bAddPixelMargin = MS_TRUE;
 
 
   const char *resampleMode = CSLFetchNameValue( layer->processing,
@@ -1277,20 +1374,74 @@ int msResampleGDALToMap( mapObj *map, layerObj *layer, imageObj *image,
   }
 
   /* -------------------------------------------------------------------- */
+  /*      If requesting at the raster resolution, on pixel boundaries,    */
+  /*      and no reprojection is  involved, we don't need any resampling. */
+  /*      And if they match an integral subsampling factor, no need to    */
+  /*      add pixel margin.                                               */
+  /*      This optimization helps a lot when operating with mode=tile     */
+  /*      and that the underlying raster is tiled and share the same      */
+  /*      tiling scheme as the queried tile mode.                         */
+  /* -------------------------------------------------------------------- */
+#define IS_ALMOST_INTEGER(x, eps)        (fabs((x)-(int)((x)+0.5)) < (eps))
+
+  if( adfSrcGeoTransform[1] > 0.0 && adfSrcGeoTransform[2] == 0.0 &&
+      adfSrcGeoTransform[4] == 0.0 && adfSrcGeoTransform[5] < 0.0 &&
+      IS_ALMOST_INTEGER(sSrcExtent.minx, 0.1) &&
+      IS_ALMOST_INTEGER(sSrcExtent.miny, 0.1) &&
+      IS_ALMOST_INTEGER(sSrcExtent.maxx, 0.1) &&
+      IS_ALMOST_INTEGER(sSrcExtent.maxy, 0.1) &&
+      !msProjectionsDiffer( &(map->projection), &(layer->projection)) ) 
+  {
+      double dfXFactor, dfYFactor;
+
+      sSrcExtent.minx = (int)(sSrcExtent.minx + 0.5);
+      sSrcExtent.miny = (int)(sSrcExtent.miny + 0.5);
+      sSrcExtent.maxx = (int)(sSrcExtent.maxx + 0.5);
+      sSrcExtent.maxy = (int)(sSrcExtent.maxy + 0.5);
+      
+      if( (int)(sSrcExtent.maxx - sSrcExtent.minx + 0.5) == nDstXSize &&
+          (int)(sSrcExtent.maxy - sSrcExtent.miny + 0.5) == nDstYSize )
+      {
+            if( layer->debug )
+                msDebug( "msResampleGDALToMap(): Request matching raster resolution and pixel boundaries. "
+                         "No need to do resampling/reprojection.\n" );
+            return msDrawRasterLayerGDAL( map, layer, image, rb, hDS );
+      }
+
+      dfXFactor = (sSrcExtent.maxx - sSrcExtent.minx) / nDstXSize;
+      dfYFactor = (sSrcExtent.maxy - sSrcExtent.miny) / nDstYSize;
+      if( IS_ALMOST_INTEGER(dfXFactor, 1e-5) &&
+          IS_ALMOST_INTEGER(dfYFactor, 1e-5) &&
+          IS_ALMOST_INTEGER(sSrcExtent.minx/dfXFactor, 0.1) &&
+          IS_ALMOST_INTEGER(sSrcExtent.miny/dfXFactor, 0.1) &&
+          IS_ALMOST_INTEGER(sSrcExtent.maxx/dfYFactor, 0.1) &&
+          IS_ALMOST_INTEGER(sSrcExtent.maxy/dfYFactor, 0.1) )
+      {
+          bAddPixelMargin = MS_FALSE;
+          if( layer->debug )
+            msDebug( "msResampleGDALToMap(): Request matching raster resolution "
+                     "and pixel boundaries matching an integral subsampling factor\n" );
+      }
+  }
+
+  /* -------------------------------------------------------------------- */
   /*      Project desired extents out by 2 pixels, and then strip to      */
   /*      available data.                                                 */
   /* -------------------------------------------------------------------- */
   memcpy( &sOrigSrcExtent, &sSrcExtent, sizeof(sSrcExtent) );
 
-  sSrcExtent.minx = floor(sSrcExtent.minx-1.0);
-  sSrcExtent.maxx = ceil (sSrcExtent.maxx+1.0);
-  sSrcExtent.miny = floor(sSrcExtent.miny-1.0);
-  sSrcExtent.maxy = ceil (sSrcExtent.maxy+1.0);
+  if( bAddPixelMargin )
+  {
+    sSrcExtent.minx = floor(sSrcExtent.minx-1.0);
+    sSrcExtent.maxx = ceil (sSrcExtent.maxx+1.0);
+    sSrcExtent.miny = floor(sSrcExtent.miny-1.0);
+    sSrcExtent.maxy = ceil (sSrcExtent.maxy+1.0);
+  }
 
-  sSrcExtent.minx = MAX(0,sSrcExtent.minx);
-  sSrcExtent.maxx = MIN(sSrcExtent.maxx, nSrcXSize );
-  sSrcExtent.miny = MAX(sSrcExtent.miny, 0 );
-  sSrcExtent.maxy = MIN(sSrcExtent.maxy, nSrcYSize );
+  sSrcExtent.minx = MS_MAX(0,sSrcExtent.minx);
+  sSrcExtent.maxx = MS_MIN(sSrcExtent.maxx, nSrcXSize );
+  sSrcExtent.miny = MS_MAX(sSrcExtent.miny, 0 );
+  sSrcExtent.maxy = MS_MIN(sSrcExtent.maxy, nSrcYSize );
 
   if( sSrcExtent.maxx <= sSrcExtent.minx
       || sSrcExtent.maxy <= sSrcExtent.miny ) {
@@ -1320,7 +1471,12 @@ int msResampleGDALToMap( mapObj *map, layerObj *layer, imageObj *image,
     sqrt(adfSrcGeoTransform[1] * adfSrcGeoTransform[1]
          + adfSrcGeoTransform[2] * adfSrcGeoTransform[2]);
 
-  if( (sOrigSrcExtent.maxx - sOrigSrcExtent.minx) > dfOversampleRatio * nDstXSize
+  /* Check first that the requested extent is not greater than the source */
+  /* raster. This might be the case for example if asking to visualize */
+  /* -180,-89,180,90 in EPSG:4326 from a raster in Arctic Polar Stereographic */
+  if( !(sOrigSrcExtent.minx <= -nSrcXSize  && sOrigSrcExtent.miny <= -nSrcYSize &&
+        sOrigSrcExtent.maxx >= 2 * nSrcXSize && sOrigSrcExtent.maxy >= 2 * nSrcYSize)
+      && (sOrigSrcExtent.maxx - sOrigSrcExtent.minx) > dfOversampleRatio * nDstXSize
       && !CSLFetchBoolean( layer->processing, "LOAD_FULL_RES_IMAGE", FALSE ))
     sDummyMap.cellsize =
       (dfNominalCellSize * (sOrigSrcExtent.maxx - sOrigSrcExtent.minx))
@@ -1328,9 +1484,9 @@ int msResampleGDALToMap( mapObj *map, layerObj *layer, imageObj *image,
   else
     sDummyMap.cellsize = dfNominalCellSize;
 
-  nLoadImgXSize = MAX(1, (int) (sSrcExtent.maxx - sSrcExtent.minx)
+  nLoadImgXSize = MS_MAX(1, (int) (sSrcExtent.maxx - sSrcExtent.minx)
                       * (dfNominalCellSize / sDummyMap.cellsize));
-  nLoadImgYSize = MAX(1, (int) (sSrcExtent.maxy - sSrcExtent.miny)
+  nLoadImgYSize = MS_MAX(1, (int) (sSrcExtent.maxy - sSrcExtent.miny)
                       * (dfNominalCellSize / sDummyMap.cellsize));
 
   /*
@@ -1357,6 +1513,18 @@ int msResampleGDALToMap( mapObj *map, layerObj *layer, imageObj *image,
     + adfSrcGeoTransform[5] * sSrcExtent.miny;
   adfSrcGeoTransform[4] *= (sDummyMap.cellsize / dfNominalCellSize);
   adfSrcGeoTransform[5] *= (sDummyMap.cellsize / dfNominalCellSize);
+
+  /* In the non-rotated case, make sure that the geotransform exactly */
+  /* matches the sSrcExtent, even if that generates non-square pixels (#1715) */
+  /* The rotated case should ideally be dealt with, but not for now... */
+  if( adfSrcGeoTransform[2] == 0 && adfSrcGeoTransform[4] == 0 &&
+      adfSrcGeoTransform[5] < 0 )
+  {
+      adfSrcGeoTransform[1] = (sSrcExtent.maxx - sSrcExtent.minx) *
+                                            dfNominalCellSize / nLoadImgXSize;
+      adfSrcGeoTransform[5] = -(sSrcExtent.maxy - sSrcExtent.miny) *
+                                            dfNominalCellSize / nLoadImgYSize;
+  }
 
   papszAlteredProcessing = CSLDuplicate( layer->processing );
   papszAlteredProcessing =

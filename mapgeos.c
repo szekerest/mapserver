@@ -31,6 +31,10 @@
 
 #ifdef USE_GEOS
 
+// To avoid accidental use of non reentrant GEOS API.
+// (check only effective in GEOS >= 3.5)
+#define GEOS_USE_ONLY_R_API
+
 #include <geos_c.h>
 
 /*
@@ -64,7 +68,7 @@ static inline GEOSContextHandle_t msGetGeosContextHandle()
 #include "mapthread.h"
 typedef struct geos_thread_info {
   struct geos_thread_info *next;
-  int             thread_id;
+  void*             thread_id;
   GEOSContextHandle_t        geos_handle;
 } geos_thread_info_t;
 
@@ -74,7 +78,7 @@ static GEOSContextHandle_t msGetGeosContextHandle()
 {
   geos_thread_info_t *link;
   GEOSContextHandle_t ret_obj;
-  int        thread_id;
+  void*        thread_id;
 
   msAcquireLock( TLOCK_GEOS );
 
@@ -716,6 +720,7 @@ void msGEOSFreeGeometry(shapeObj *shape)
 
   g = (GEOSGeom) shape->geometry;
   GEOSGeom_destroy_r(handle,g);
+  shape->geometry = NULL;
 #else
   msSetError(MS_GEOSERR, "GEOS support is not available.", "msGEOSFreeGEOSGeom()");
   return;

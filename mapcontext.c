@@ -27,7 +27,7 @@
  ****************************************************************************/
 
 #include "mapserver.h"
-
+#include "mapows.h"
 
 
 #if defined(USE_WMS_LYR) && defined(USE_OGR)
@@ -661,6 +661,7 @@ int msLoadMapContextGeneral(mapObj *map, CPLXMLNode *psGeneral,
 
   char *pszProj=NULL;
   char *pszValue, *pszValue1, *pszValue2;
+  int nTmp;
 
   /* Projection */
   pszValue = (char*)CPLGetXMLValue(psGeneral,
@@ -678,12 +679,14 @@ int msLoadMapContextGeneral(mapObj *map, CPLXMLNode *psGeneral,
     map->projection.numargs++;
     msProcessProjection(&map->projection);
 
-    if( (map->units = GetMapserverUnitUsingProj(&(map->projection))) == -1) {
+    if( (nTmp = GetMapserverUnitUsingProj(&(map->projection))) == -1) {
       free(pszProj);
       msSetError( MS_MAPCONTEXTERR,
                   "Unable to set units for projection '%s'",
                   "msLoadMapContext()", pszProj );
       return MS_FAILURE;
+    } else {
+      map->units = nTmp;
     }
     free(pszProj);
   } else {
@@ -1032,7 +1035,11 @@ int msLoadMapContextLayer(mapObj *map, CPLXMLNode *psLayer, int nVersion,
   if (psExtension != NULL) {
     pszValue = (char*)CPLGetXMLValue(psExtension, "ol:opacity", NULL);
     if(pszValue != NULL) {
-      layer->opacity = atof(pszValue)*100;
+      if(!layer->compositer) {
+        layer->compositer = msSmallMalloc(sizeof(LayerCompositer));
+        initLayerCompositer(layer->compositer);
+      }
+      layer->compositer->opacity = atof(pszValue)*100;
     }
   }
 

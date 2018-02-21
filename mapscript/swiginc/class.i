@@ -124,7 +124,7 @@
   int setExpression(char *expression) 
   {
     if (!expression || strlen(expression) == 0) {
-       freeExpression(&self->expression);
+       msFreeExpression(&self->expression);
        return MS_SUCCESS;
     }
     else return msLoadExpressionString(&self->expression, expression);
@@ -137,7 +137,7 @@
 
   int setText(char *text) {
     if (!text || strlen(text) == 0) {
-      freeExpression(&self->text);
+      msFreeExpression(&self->text);
       return MS_SUCCESS;
     }	
     else return msLoadExpressionString(&self->text, text);
@@ -176,7 +176,14 @@
     return (char *) msNextKeyFromHashTable(&(self->metadata), lastkey);
   }
   
-  int drawLegendIcon(mapObj *map, layerObj *layer, int width, int height, imageObj *dstImage, int dstX, int dstY) {
+  int drawLegendIcon(mapObj *map, layerObj *layer, int width, int height, imageObj *dstImage, int dstX, int dstY) {    
+    if(layer->sizeunits != MS_PIXELS) {
+      map->cellsize = msAdjustExtent(&(map->extent), map->width, map->height);
+      layer->scalefactor = (msInchesPerUnit(layer->sizeunits,0)/msInchesPerUnit(map->units,0)) / map->cellsize;
+    }
+    else
+      layer->scalefactor = map->resolution/map->defresolution;
+    
     return msDrawLegendIcon(map, layer, self, width, height, dstImage, dstX, dstY, MS_TRUE, NULL);
   }
  

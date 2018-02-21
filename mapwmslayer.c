@@ -30,6 +30,7 @@
 #include "mapserver.h"
 #include "maperror.h"
 #include "mapogcsld.h"
+#include "mapows.h"
 
 #include <time.h>
 #include <ctype.h>
@@ -697,12 +698,17 @@ msBuildWMSLayerURL(mapObj *map, layerObj *lp, int nRequestType,
       else {
         double cellsize_x = (bbox.maxx-bbox.minx) / bbox_width;
         double cellsize_y = (bbox.maxy-bbox.miny) / bbox_height;
-        double cellsize = MIN(cellsize_x,cellsize_y);
+        double cellsize = MS_MIN(cellsize_x,cellsize_y);
 
         msRectIntersect( &bbox, &layer_rect );
 
         bbox_width = ceil((bbox.maxx - bbox.minx) / cellsize);
         bbox_height = ceil((bbox.maxy - bbox.miny) / cellsize);
+
+        /* Force going through the resampler if we're going to receive a clipped BBOX (#4931) */
+        if(msLayerGetProcessingKey(lp, "RESAMPLE") == NULL) {
+          msLayerSetProcessingKey(lp, "RESAMPLE", "nearest");
+        }
       }
     }
   }

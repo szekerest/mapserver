@@ -542,12 +542,13 @@ PHP_FUNCTION(ms_newGridObj)
 
   php_layer->layer->connectiontype = MS_GRATICULE;
 
-  if (php_layer->layer->layerinfo != NULL)
-    free(php_layer->layer->layerinfo);
+  if (php_layer->layer->grid != NULL) {
+    freeGrid(php_layer->layer->grid);
+    free(php_layer->layer->grid);
+  }
 
-
-  php_layer->layer->layerinfo = (graticuleObj *)malloc( sizeof( graticuleObj ) );
-  initGrid((graticuleObj *)php_layer->layer->layerinfo);
+  php_layer->layer->grid = (graticuleObj *)malloc( sizeof( graticuleObj ) );
+  initGrid(php_layer->layer->grid);
 
   if (php_layer->grid && (Z_TYPE_P(php_layer->grid) == IS_OBJECT)) {
     php_grid = (php_grid_object *) zend_object_store_get_object(php_layer->grid TSRMLS_CC);
@@ -558,7 +559,7 @@ PHP_FUNCTION(ms_newGridObj)
   MAKE_STD_ZVAL(php_layer->grid);
 
   MAPSCRIPT_MAKE_PARENT(zlayer, &php_layer->grid);
-  mapscript_create_grid((graticuleObj *)(php_layer->layer->layerinfo), parent, php_layer->grid TSRMLS_CC);
+  mapscript_create_grid((graticuleObj *)(php_layer->layer->grid), parent, php_layer->grid TSRMLS_CC);
   zend_objects_store_add_ref(php_layer->grid TSRMLS_CC);
 
   *return_value = *(php_layer->grid);
@@ -1068,7 +1069,6 @@ PHP_MINIT_FUNCTION(mapscript)
   REGISTER_LONG_CONSTANT("MS_INLINE",     MS_INLINE,      const_flag);
   REGISTER_LONG_CONSTANT("MS_SHAPEFILE",  MS_SHAPEFILE,   const_flag);
   REGISTER_LONG_CONSTANT("MS_TILED_SHAPEFILE",MS_TILED_SHAPEFILE,const_flag);
-  REGISTER_LONG_CONSTANT("MS_SDE",        MS_SDE,         const_flag);
   REGISTER_LONG_CONSTANT("MS_OGR",        MS_OGR,         const_flag);
   REGISTER_LONG_CONSTANT("MS_POSTGIS",    MS_POSTGIS,     const_flag);
   REGISTER_LONG_CONSTANT("MS_WMS",        MS_WMS,         const_flag);
@@ -1120,7 +1120,6 @@ PHP_MINIT_FUNCTION(mapscript)
   REGISTER_LONG_CONSTANT("MS_NOTFOUND",   MS_NOTFOUND,    const_flag);
   REGISTER_LONG_CONSTANT("MS_SHPERR",     MS_SHPERR,      const_flag);
   REGISTER_LONG_CONSTANT("MS_PARSEERR",   MS_PARSEERR,    const_flag);
-  REGISTER_LONG_CONSTANT("MS_SDEERR",     MS_SDEERR,      const_flag);
   REGISTER_LONG_CONSTANT("MS_OGRERR",     MS_OGRERR,      const_flag);
   REGISTER_LONG_CONSTANT("MS_QUERYERR",   MS_QUERYERR,    const_flag);
   REGISTER_LONG_CONSTANT("MS_WMSERR",     MS_WMSERR,      const_flag);
@@ -1198,7 +1197,7 @@ PHP_MINIT_FUNCTION(mapscript)
   REGISTER_LONG_CONSTANT("MS_DEBUGLEVEL_VVV", MS_DEBUGLEVEL_VVV, const_flag);
   REGISTER_LONG_CONSTANT("MS_DEFAULT_CGI_PARAMS", MS_DEFAULT_CGI_PARAMS, const_flag);
   REGISTER_LONG_CONSTANT("MS_DEFAULT_LABEL_PRIORITY", MS_DEFAULT_LABEL_PRIORITY, const_flag);
-  REGISTER_LONG_CONSTANT("MS_ERROR_LANGUAGE", MS_ERROR_LANGUAGE, const_flag);
+  REGISTER_STRING_CONSTANT("MS_ERROR_LANGUAGE", MS_ERROR_LANGUAGE, const_flag);
   REGISTER_LONG_CONSTANT("MS_FILE_MAP", MS_FILE_MAP, const_flag);
   REGISTER_LONG_CONSTANT("MS_FILE_SYMBOL", MS_FILE_SYMBOL, const_flag);
   REGISTER_LONG_CONSTANT("MS_GEOS_BEYOND", MS_GEOS_BEYOND, const_flag);
@@ -1303,7 +1302,7 @@ PHP_MINIT_FUNCTION(mapscript)
 PHP_MSHUTDOWN_FUNCTION(mapscript)
 {
   /* Cleanup MapServer resources */
-  msCleanup(0);
+  msCleanup();
 
   return SUCCESS;
 }

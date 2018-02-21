@@ -32,7 +32,7 @@
 #include "mapserver.h"
 #include "mapresample.h"
 #include "mapthread.h"
-
+#include "maptime.h"
 
 
 extern int InvGeoTransform( double *gt_in, double *gt_out );
@@ -217,21 +217,21 @@ int msDrawRasterLayerGDAL(mapObj *map, layerObj *layer, imageObj *image,
     urx = GEO_TRANS(adfInvGeoTransform+0,copyRect.maxx,copyRect.maxy);
     ury = GEO_TRANS(adfInvGeoTransform+3,copyRect.maxx,copyRect.maxy);
 
-    src_xoff = MAX(0,(int) floor(llx+0.5));
-    src_yoff = MAX(0,(int) floor(ury+0.5));
-    src_xsize = MIN(MAX(0,(int) (urx - llx + 0.5)),
+    src_xoff = MS_MAX(0,(int) floor(llx+0.5));
+    src_yoff = MS_MAX(0,(int) floor(ury+0.5));
+    src_xsize = MS_MIN(MS_MAX(0,(int) (urx - llx + 0.5)),
                     GDALGetRasterXSize(hDS) - src_xoff);
-    src_ysize = MIN(MAX(0,(int) (lly - ury + 0.5)),
+    src_ysize = MS_MIN(MS_MAX(0,(int) (lly - ury + 0.5)),
                     GDALGetRasterYSize(hDS) - src_yoff);
 
     /* We want very small windows to use at least one source pixel (#4172) */
     if( src_xsize == 0 && (urx - llx) > 0.0 ) {
       src_xsize = 1;
-      src_xoff = MIN(src_xoff,GDALGetRasterXSize(hDS)-1);
+      src_xoff = MS_MIN(src_xoff,GDALGetRasterXSize(hDS)-1);
     }
     if( src_ysize == 0 && (lly - ury) > 0.0 ) {
       src_ysize = 1;
-      src_yoff = MIN(src_yoff,GDALGetRasterYSize(hDS)-1);
+      src_yoff = MS_MIN(src_yoff,GDALGetRasterYSize(hDS)-1);
     }
 
     if( src_xsize == 0 || src_ysize == 0 ) {
@@ -251,11 +251,11 @@ int msDrawRasterLayerGDAL(mapObj *map, layerObj *layer, imageObj *image,
 
     dst_lrx = (int) ((copyRect.maxx - mapRect.minx) / map->cellsize + 0.5);
     dst_lry = (int) ((mapRect.maxy - copyRect.miny) / map->cellsize + 0.5);
-    dst_lrx = MAX(0,MIN(image->width,dst_lrx));
-    dst_lry = MAX(0,MIN(image->height,dst_lry));
+    dst_lrx = MS_MAX(0,MS_MIN(image->width,dst_lrx));
+    dst_lry = MS_MAX(0,MS_MIN(image->height,dst_lry));
 
-    dst_xsize = MAX(0,MIN(image->width,dst_lrx - dst_xoff));
-    dst_ysize = MAX(0,MIN(image->height,dst_lry - dst_yoff));
+    dst_xsize = MS_MAX(0,MS_MIN(image->width,dst_lrx - dst_xoff));
+    dst_ysize = MS_MAX(0,MS_MIN(image->height,dst_lry - dst_yoff));
 
     if( dst_xsize == 0 || dst_ysize == 0 ) {
       if( layer->debug )
@@ -290,8 +290,8 @@ int msDrawRasterLayerGDAL(mapObj *map, layerObj *layer, imageObj *image,
   else {
     dst_xoff = src_xoff = 0;
     dst_yoff = src_yoff = 0;
-    dst_xsize = src_xsize = MIN(image->width,src_xsize);
-    dst_ysize = src_ysize = MIN(image->height,src_ysize);
+    dst_xsize = src_xsize = MS_MIN(image->width,src_xsize);
+    dst_ysize = src_ysize = MS_MIN(image->height,src_ysize);
   }
 
   /*
@@ -533,7 +533,7 @@ int msDrawRasterLayerGDAL(mapObj *map, layerObj *layer, imageObj *image,
       return -1;
     }
 
-    color_count = MIN(256,GDALGetColorEntryCount(hColorMap));
+    color_count = MS_MIN(256,GDALGetColorEntryCount(hColorMap));
     for(i=0; i < color_count; i++) {
       colorObj pixel;
       int colormap_index;
@@ -598,7 +598,7 @@ int msDrawRasterLayerGDAL(mapObj *map, layerObj *layer, imageObj *image,
     cmap_set = TRUE;
 #endif
 
-    color_count = MIN(256,GDALGetColorEntryCount(hColorMap));
+    color_count = MS_MIN(256,GDALGetColorEntryCount(hColorMap));
 
     for(i=0; i < color_count; i++) {
       GDALColorEntry sEntry;
@@ -889,8 +889,8 @@ static int ParseDefaultLUT( const char *lut_def, GByte *lut )
         lut_read++;
     }
 
-    this_in = MAX(0,MIN(255,this_in));
-    this_out = MAX(0,MIN(255,this_out));
+    this_in = MS_MAX(0,MS_MIN(255,this_in));
+    this_out = MS_MAX(0,MS_MIN(255,this_out));
 
     /* apply linear values from last in:out to this in:out */
     for( lut_i = last_in; lut_i <= this_in; lut_i++ ) {
@@ -1270,13 +1270,16 @@ LoadGDALImages( GDALDatasetH hDS, int band_numbers[4], int band_count,
         if( bGotNoData && pafRawData[i] == fNoDataValue )
           continue;
 
+        if( CPLIsNan(pafRawData[i]) )
+          continue;
+
         if( !bMinMaxSet ) {
           dfScaleMin = dfScaleMax = pafRawData[i];
           bMinMaxSet = TRUE;
         }
 
-        dfScaleMin = MIN(dfScaleMin,pafRawData[i]);
-        dfScaleMax = MAX(dfScaleMax,pafRawData[i]);
+        dfScaleMin = MS_MIN(dfScaleMin,pafRawData[i]);
+        dfScaleMax = MS_MAX(dfScaleMax,pafRawData[i]);
       }
 
       if( dfScaleMin == dfScaleMax )
@@ -1714,6 +1717,9 @@ msDrawRasterLayerGDAL_16BitClassification(
   unsigned char *rb_cmap[4];
   CPLErr eErr;
   rasterBufferObj *mask_rb = NULL;
+  int lastC;
+  struct mstimeval starttime, endtime;
+
   if(layer->mask) {
     int ret;
     layerObj *maskLayer = GET_LAYER(map, msGetLayerIndex(map,layer->mask));
@@ -1764,12 +1770,15 @@ msDrawRasterLayerGDAL_16BitClassification(
     if( bGotNoData && pafRawData[i] == fNoDataValue )
       continue;
 
+    if( CPLIsNan(pafRawData[i]) )
+      continue;
+
     if( !bGotFirstValue ) {
       fDataMin = fDataMax = pafRawData[i];
       bGotFirstValue = TRUE;
     } else {
-      fDataMin = MIN(fDataMin,pafRawData[i]);
-      fDataMax = MAX(fDataMax,pafRawData[i]);
+      fDataMin = MS_MIN(fDataMin,pafRawData[i]);
+      fDataMax = MS_MAX(fDataMax,pafRawData[i]);
     }
   }
 
@@ -1869,6 +1878,12 @@ msDrawRasterLayerGDAL_16BitClassification(
   rb_cmap[2] = (unsigned char *) msSmallCalloc(1,nBucketCount);
   rb_cmap[3] = (unsigned char *) msSmallCalloc(1,nBucketCount);
 
+
+  if(layer->debug >= MS_DEBUGLEVEL_TUNING) {
+    msGettimeofday(&starttime, NULL);
+  }
+
+  lastC = -1;
   for(i=0; i < nBucketCount; i++) {
     double dfOriginalValue;
 
@@ -1876,7 +1891,11 @@ msDrawRasterLayerGDAL_16BitClassification(
 
     dfOriginalValue = (i+0.5) / dfScaleRatio + dfScaleMin;
 
-    c = msGetClass_FloatRGB(layer, (float) dfOriginalValue, -1, -1, -1);
+    /* The creation of buckets takes a significant time when they are many, and many classes
+       as well. When iterating over buckets, a faster strategy is to reuse first the last used
+       class index. */
+    c = msGetClass_FloatRGB_WithFirstClassToTry(layer, (float) dfOriginalValue, -1, -1, -1, lastC);
+    lastC = c;
     if( c != -1 ) {
       int s;
 
@@ -1898,6 +1917,13 @@ msDrawRasterLayerGDAL_16BitClassification(
     }
   }
 
+  if(layer->debug >= MS_DEBUGLEVEL_TUNING) {
+    msGettimeofday(&endtime, NULL);
+    msDebug("msDrawRasterGDAL_16BitClassification() bucket creation time: %.3fs\n",
+            (endtime.tv_sec+endtime.tv_usec/1.0e6)-
+            (starttime.tv_sec+starttime.tv_usec/1.0e6) );
+  }
+
   /* ==================================================================== */
   /*      Now process the data, applying to the working imageObj.         */
   /* ==================================================================== */
@@ -1914,6 +1940,9 @@ msDrawRasterLayerGDAL_16BitClassification(
       if( bGotNoData && fRawValue == fNoDataValue ) {
         continue;
       }
+
+      if( CPLIsNan(fRawValue) )
+        continue;
 
       if(SKIP_MASK(j,i))
         continue;
@@ -2018,7 +2047,7 @@ int *msGetGDALBandList( layerObj *layer, void *hDS,
   /* -------------------------------------------------------------------- */
   if( CSLFetchNameValue( layer->processing, "BANDS" ) == NULL ) {
     if( max_bands > 0 )
-      *band_count = MIN(file_bands,max_bands);
+      *band_count = MS_MIN(file_bands,max_bands);
     else
       *band_count = file_bands;
 

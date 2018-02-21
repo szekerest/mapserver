@@ -36,6 +36,8 @@
 int msyylineno = 1;
 #endif
 
+#define YY_NO_INPUT
+
 int msyysource=MS_STRING_TOKENS;
 double msyynumber;
 int msyystate=MS_TOKENIZE_DEFAULT;
@@ -185,7 +187,7 @@ char path[MS_MAXPATHLEN];
 <EXPRESSION_STRING>upper                       { MS_LEXER_RETURN_TOKEN(MS_TOKEN_FUNCTION_UPPER); }
 <EXPRESSION_STRING>lower                       { MS_LEXER_RETURN_TOKEN(MS_TOKEN_FUNCTION_LOWER); }
 <EXPRESSION_STRING>initcap                     { MS_LEXER_RETURN_TOKEN(MS_TOKEN_FUNCTION_INITCAP); }
-<EXPRESSION_STRING>firstcap                     { MS_LEXER_RETURN_TOKEN(MS_TOKEN_FUNCTION_FIRSTCAP); }
+<EXPRESSION_STRING>firstcap                    { MS_LEXER_RETURN_TOKEN(MS_TOKEN_FUNCTION_FIRSTCAP); }
 
 <EXPRESSION_STRING>buffer                      { MS_LEXER_RETURN_TOKEN(MS_TOKEN_FUNCTION_BUFFER); }
 <EXPRESSION_STRING>difference                  { MS_LEXER_RETURN_TOKEN(MS_TOKEN_FUNCTION_DIFFERENCE); }
@@ -202,10 +204,14 @@ char path[MS_MAXPATHLEN];
 <EXPRESSION_STRING>crosses                     { MS_LEXER_RETURN_TOKEN(MS_TOKEN_COMPARISON_CROSSES); }
 <EXPRESSION_STRING>within                      { MS_LEXER_RETURN_TOKEN(MS_TOKEN_COMPARISON_WITHIN); }
 <EXPRESSION_STRING>contains                    { MS_LEXER_RETURN_TOKEN(MS_TOKEN_COMPARISON_CONTAINS); }
+<EXPRESSION_STRING>equals                      { MS_LEXER_RETURN_TOKEN(MS_TOKEN_COMPARISON_EQUALS); }
 <EXPRESSION_STRING>beyond                      { MS_LEXER_RETURN_TOKEN(MS_TOKEN_COMPARISON_BEYOND); }
 <EXPRESSION_STRING>dwithin                     { MS_LEXER_RETURN_TOKEN(MS_TOKEN_COMPARISON_DWITHIN); }
 
 <EXPRESSION_STRING>fromtext                    { MS_LEXER_RETURN_TOKEN(MS_TOKEN_FUNCTION_FROMTEXT); }
+
+<EXPRESSION_STRING>true                        { msyynumber=MS_TRUE; return(MS_TOKEN_LITERAL_BOOLEAN); }
+<EXPRESSION_STRING>false                       { msyynumber=MS_FALSE; return(MS_TOKEN_LITERAL_BOOLEAN); }
 
 <INITIAL>colorrange                            { MS_LEXER_RETURN_TOKEN(COLORRANGE); }
 <INITIAL>datarange                             { MS_LEXER_RETURN_TOKEN(DATARANGE); }
@@ -218,6 +224,7 @@ char path[MS_MAXPATHLEN];
 <INITIAL,URL_STRING>backgroundcolor            { MS_LEXER_RETURN_TOKEN(BACKGROUNDCOLOR); }
 <INITIAL>bandsitem                             { MS_LEXER_RETURN_TOKEN(BANDSITEM); }
 <INITIAL>bindvals                              { MS_LEXER_RETURN_TOKEN(BINDVALS); }
+<INITIAL>\xEF\xBB\xBF                          { MS_LEXER_RETURN_TOKEN(BOM); }
 <INITIAL>browseformat                          { MS_LEXER_RETURN_TOKEN(BROWSEFORMAT); }
 <INITIAL>buffer                                { MS_LEXER_RETURN_TOKEN(BUFFER); }
 <INITIAL>character                             { MS_LEXER_RETURN_TOKEN(CHARACTER); }
@@ -226,6 +233,9 @@ char path[MS_MAXPATHLEN];
 <INITIAL,URL_STRING>classgroup                 { MS_LEXER_RETURN_TOKEN(CLASSGROUP); }
 <INITIAL>cluster                               { MS_LEXER_RETURN_TOKEN(CLUSTER); }
 <INITIAL,URL_STRING>color                      { MS_LEXER_RETURN_TOKEN(COLOR); }
+<INITIAL>compfilter                            { MS_LEXER_RETURN_TOKEN(COMPFILTER); }
+<INITIAL>composite                             { MS_LEXER_RETURN_TOKEN(COMPOSITE); }
+<INITIAL>compop                                { MS_LEXER_RETURN_TOKEN(COMPOP); }
 <INITIAL>config                                { MS_LEXER_RETURN_TOKEN(CONFIG); }
 <INITIAL,URL_STRING>connection                 { MS_LEXER_RETURN_TOKEN(CONNECTION); }
 <INITIAL,URL_STRING>connectiontype             { MS_LEXER_RETURN_TOKEN(CONNECTIONTYPE); }
@@ -344,7 +354,7 @@ char path[MS_MAXPATHLEN];
 <INITIAL>partials                              { MS_LEXER_RETURN_TOKEN(PARTIALS); }
 <INITIAL,URL_STRING>pattern                    { MS_LEXER_RETURN_TOKEN(PATTERN); }
 <INITIAL,URL_STRING>points                     { MS_LEXER_RETURN_TOKEN(POINTS); }
-<INITIAL>items                                 { MS_LEXER_RETURN_TOKEN(ITEMS); }
+<INITIAL,URL_STRING>items                      { MS_LEXER_RETURN_TOKEN(ITEMS); }
 <INITIAL,URL_STRING>position                   { MS_LEXER_RETURN_TOKEN(POSITION); }
 <INITIAL>postlabelcache                        { MS_LEXER_RETURN_TOKEN(POSTLABELCACHE); }
 <INITIAL>priority                              { MS_LEXER_RETURN_TOKEN(PRIORITY); }
@@ -458,7 +468,6 @@ char path[MS_MAXPATHLEN];
 <INITIAL>raster                                { MS_LEXER_RETURN_TOKEN(MS_LAYER_RASTER); }
 <INITIAL,URL_STRING>right                      { MS_LEXER_RETURN_TOKEN(MS_ALIGN_RIGHT); }
 <INITIAL>round                                 { MS_LEXER_RETURN_TOKEN(MS_CJC_ROUND); }
-<INITIAL>sde                                   { MS_LEXER_RETURN_TOKEN(MS_SDE); }
 <INITIAL>selected                              { MS_LEXER_RETURN_TOKEN(MS_SELECTED); }
 <INITIAL>simple                                { MS_LEXER_RETURN_TOKEN(MS_SYMBOL_SIMPLE); }
 <INITIAL>single                                { MS_LEXER_RETURN_TOKEN(MS_SINGLE); }
@@ -480,7 +489,7 @@ char path[MS_MAXPATHLEN];
 <INITIAL>wfs                                   { MS_LEXER_RETURN_TOKEN(MS_WFS); }
 <INITIAL>wms                                   { MS_LEXER_RETURN_TOKEN(MS_WMS); }
 
-<URL_VARIABLE>\[[a-z/\.][a-z0-9/\.\-\=_ ]*\]   {
+<URL_VARIABLE>\[[a-z/\.][a-z0-9/:\.\-\=_ ]*\]  {
                                                  msyytext++;
                                                  msyytext[strlen(msyytext)-1] = '\0';
                                                  MS_LEXER_STRING_REALLOC(msyystring_buffer, strlen(msyytext), 

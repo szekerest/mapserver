@@ -174,7 +174,7 @@ static cairoFaceCache* getCairoFontFace(cairoCacheData *cache, FT_Face ftface) {
   cur->options = cairo_font_options_create();
   cairo_font_options_set_hint_style(cur->options,CAIRO_HINT_STYLE_NONE);
   return cur;
-} 
+}
 
 #define msCairoSetSourceColor(cr, c) cairo_set_source_rgba((cr),(c)->red/255.0,(c)->green/255.0,(c)->blue/255.0,(c)->alpha/255.0);
 
@@ -706,7 +706,7 @@ int renderEllipseSymbolCairo(imageObj *img, double x, double y, symbolObj *symbo
 
 int startLayerVectorCairo(imageObj *img, mapObj *map, layerObj *layer)
 {
-  if(layer->opacity<100) {
+  if(layer->compositer && layer->compositer->opacity<100) {
     cairo_renderer *r = CAIRO_RENDERER(img);
     cairo_push_group (r->cr);
   }
@@ -715,10 +715,10 @@ int startLayerVectorCairo(imageObj *img, mapObj *map, layerObj *layer)
 
 int closeLayerVectorCairo(imageObj *img, mapObj *map, layerObj *layer)
 {
-  if(layer->opacity<100) {
+  if(layer->compositer && layer->compositer->opacity<100) {
     cairo_renderer *r = CAIRO_RENDERER(img);
     cairo_pop_group_to_source (r->cr);
-    cairo_paint_with_alpha (r->cr, layer->opacity*0.01);
+    cairo_paint_with_alpha (r->cr, layer->compositer->opacity*0.01);
   }
   return MS_SUCCESS;
 }
@@ -777,7 +777,85 @@ int getRasterBufferCopyCairo(imageObj *img, rasterBufferObj *rb)
   return MS_SUCCESS;
 }
 
+static cairo_operator_t ms2cairo_compop(CompositingOperation op) {
+  switch(op) {
+    case MS_COMPOP_CLEAR:
+      return CAIRO_OPERATOR_CLEAR;
+    case MS_COMPOP_SRC:
+      return CAIRO_OPERATOR_SOURCE;
+    case MS_COMPOP_DST:
+      return CAIRO_OPERATOR_DEST;
+    case MS_COMPOP_SRC_OVER:
+      return CAIRO_OPERATOR_OVER;
+    case MS_COMPOP_DST_OVER:
+      return CAIRO_OPERATOR_DEST_OVER;
+    case MS_COMPOP_SRC_IN:
+      return CAIRO_OPERATOR_IN;
+    case MS_COMPOP_DST_IN:
+      return CAIRO_OPERATOR_DEST_IN;
+    case MS_COMPOP_SRC_OUT:
+      return CAIRO_OPERATOR_OUT;
+    case MS_COMPOP_DST_OUT:
+      return CAIRO_OPERATOR_DEST_OUT;
+    case MS_COMPOP_SRC_ATOP:
+      return CAIRO_OPERATOR_ATOP;
+    case MS_COMPOP_DST_ATOP:
+      return CAIRO_OPERATOR_DEST_ATOP;
+    case MS_COMPOP_XOR:
+      return CAIRO_OPERATOR_XOR;
+    case MS_COMPOP_PLUS:
+      return CAIRO_OPERATOR_ADD;
+    case MS_COMPOP_MULTIPLY:
+      return CAIRO_OPERATOR_MULTIPLY;
+    case MS_COMPOP_SCREEN:
+      return CAIRO_OPERATOR_SCREEN;
+    case MS_COMPOP_OVERLAY:
+      return CAIRO_OPERATOR_OVERLAY;
+    case MS_COMPOP_DARKEN:
+      return CAIRO_OPERATOR_DARKEN;
+    case MS_COMPOP_LIGHTEN:
+      return CAIRO_OPERATOR_LIGHTEN;
+    case MS_COMPOP_COLOR_DODGE:
+      return CAIRO_OPERATOR_COLOR_DODGE;
+    case MS_COMPOP_COLOR_BURN:
+      return CAIRO_OPERATOR_COLOR_BURN;
+    case MS_COMPOP_HARD_LIGHT:
+      return CAIRO_OPERATOR_HARD_LIGHT;
+    case MS_COMPOP_SOFT_LIGHT:
+      return CAIRO_OPERATOR_SOFT_LIGHT;
+    case MS_COMPOP_DIFFERENCE:
+      return CAIRO_OPERATOR_DIFFERENCE;
+    case MS_COMPOP_EXCLUSION:
+      return CAIRO_OPERATOR_EXCLUSION;
+    case MS_COMPOP_INVERT:
+    case MS_COMPOP_INVERT_RGB:
+    case MS_COMPOP_MINUS:
+    case MS_COMPOP_CONTRAST:
+    default:
+      return CAIRO_OPERATOR_OVER;
+  }
+}
 
+int cairoCompositeRasterBuffer(imageObj *img, rasterBufferObj *rb, CompositingOperation comp, int opacity) {
+  cairo_surface_t *src;
+  cairo_renderer *r;
+  if(rb->type != MS_BUFFER_BYTE_RGBA) {
+    return MS_FAILURE;
+  }
+  r = CAIRO_RENDERER(img);
+
+  src = cairo_image_surface_create_for_data(rb->data.rgba.pixels,CAIRO_FORMAT_ARGB32,
+        rb->width,rb->height,
+        rb->data.rgba.row_step);
+
+  cairo_set_source_surface (r->cr,src,0,0);
+  cairo_set_operator(r->cr, ms2cairo_compop(comp));
+  cairo_paint_with_alpha(r->cr,opacity/100.0);
+  cairo_surface_finish(src);
+  cairo_surface_destroy(src);
+  cairo_set_operator(r->cr,CAIRO_OPERATOR_OVER);
+  return MS_SUCCESS;
+}
 
 int mergeRasterBufferCairo(imageObj *img, rasterBufferObj *rb, double opacity,
                            int srcX, int srcY, int dstX, int dstY,
@@ -812,6 +890,7 @@ int mergeRasterBufferCairo(imageObj *img, rasterBufferObj *rb, double opacity,
 void freeSVGCache(symbolObj *s) {
 #if defined(USE_SVG_CAIRO) || defined(USE_RSVG)
       struct svg_symbol_cache *cache = s->renderer_cache;
+      if(!cache) return;
       assert(cache->svgc);
 #ifdef USE_SVG_CAIRO
       svg_cairo_destroy(cache->svgc);
@@ -909,6 +988,7 @@ int msPreloadSVGSymbol(symbolObj *symbol)
     cache->svgc = rsvg_handle_new_from_file(symbol->full_pixmap_path,NULL);
     if(!cache->svgc) {
       msSetError(MS_RENDERERERR,"failed to load svg file %s", "msPreloadSVGSymbol()", symbol->full_pixmap_path);
+      return MS_FAILURE;
     }
     rsvg_handle_get_dimensions_sub (cache->svgc, &dim, NULL);
     symbol->sizex = dim.width;
@@ -963,8 +1043,7 @@ int msRenderRasterizedSVGSymbol(imageObj *img, double x, double y, symbolObj *sy
       height = surface_h = symbol->sizey;
     }
     if (style->rotation != 0) {
-      surface_w = MS_NINT(width * 1.415);
-      surface_h = MS_NINT(height * 1.415);
+      surface_w = surface_h = MS_NINT(MS_MAX(height, width) * 1.415);
     }
 
     surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, surface_w, surface_h);
@@ -1004,7 +1083,8 @@ int msRenderRasterizedSVGSymbol(imageObj *img, double x, double y, symbolObj *sy
   pixsymbol.pixmap_buffer = svg_cache->pixmap_buffer;
   pixsymbol.type = MS_SYMBOL_PIXMAP;
 
-  MS_IMAGE_RENDERER(img)->renderPixmapSymbol(img,x,y,&pixsymbol,&pixstyle);
+  if(MS_SUCCESS != MS_IMAGE_RENDERER(img)->renderPixmapSymbol(img,x,y,&pixsymbol,&pixstyle))
+    return MS_FAILURE;
   MS_IMAGE_RENDERER(img)->freeSymbol(&pixsymbol);
   return MS_SUCCESS;
 #else
@@ -1025,7 +1105,7 @@ int msPopulateRendererVTableCairoRaster( rendererVTableObj *renderer )
 {
 #ifdef USE_CAIRO
   renderer->supports_pixel_buffer=1;
-  renderer->supports_transparent_layers = 0;
+  renderer->compositeRasterBuffer = cairoCompositeRasterBuffer;
   renderer->supports_svg = 1;
   renderer->default_transform_mode = MS_TRANSFORM_SIMPLIFY;
   initializeCache(&MS_RENDERER_CACHE(renderer));
@@ -1063,7 +1143,7 @@ int populateRendererVTableCairoVector( rendererVTableObj *renderer )
 #ifdef USE_CAIRO
   renderer->use_imagecache=0;
   renderer->supports_pixel_buffer=0;
-  renderer->supports_transparent_layers = 1;
+  renderer->compositeRasterBuffer = NULL;
   renderer->supports_svg = 1;
   renderer->default_transform_mode = MS_TRANSFORM_SIMPLIFY;
   initializeCache(&MS_RENDERER_CACHE(renderer));

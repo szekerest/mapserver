@@ -273,7 +273,7 @@ void msPopulateTextSymbolForLabelAndString(textSymbolObj *ts, labelObj *l, char 
   ts->rotation = l->angle * MS_DEG_TO_RAD;
 }
 
-int msAddLabelGroup(mapObj *map, imageObj *image, int layerindex, int classindex, shapeObj *shape, pointObj *point, double featuresize)
+int msAddLabelGroup(mapObj *map, imageObj *image, layerObj* layer, int classindex, shapeObj *shape, pointObj *point, double featuresize)
 {
   int l,s, priority;
   labelCacheSlotObj *cacheslot;
@@ -283,9 +283,12 @@ int msAddLabelGroup(mapObj *map, imageObj *image, int layerindex, int classindex
   classObj *classPtr=NULL;
   int numtextsymbols = 0;
   textSymbolObj **textsymbols, *ts;
+  int layerindex = layer->index;
 
-  layerPtr = (GET_LAYER(map, layerindex)); /* set up a few pointers for clarity */
-  classPtr = GET_LAYER(map, layerindex)->class[classindex];
+  // We cannot use GET_LAYER here because in drawQuery the drawing may happen
+  // on a temp layer only.
+  layerPtr = layer;
+  classPtr = layer->class[classindex];
 
   if(classPtr->numlabels == 0) return MS_SUCCESS; /* not an error just nothing to do */
   
@@ -311,6 +314,9 @@ int msAddLabelGroup(mapObj *map, imageObj *image, int layerindex, int classindex
           /* label point does not intersect mask */
           return MS_SUCCESS;
         }
+      } else {
+        return MS_SUCCESS; /* label point does not intersect image extent, we cannot know if it intersects
+                             mask, so we discard it (#5237)*/
       }
     } else {
       msSetError(MS_MISCERR, "Layer (%s) references references a mask layer, but the selected renderer does not support them", "msAddLabelGroup()", layerPtr->name);
@@ -328,7 +334,7 @@ int msAddLabelGroup(mapObj *map, imageObj *image, int layerindex, int classindex
     }
     annotext = msShapeGetLabelAnnotation(layerPtr,shape,lbl);
     if(!annotext) {
-      for(s=0;s<lbl->numstyles;l++) {
+      for(s=0;s<lbl->numstyles;s++) {
         if(lbl->styles[s]->_geomtransform.type == MS_GEOMTRANSFORM_LABELPOINT)
           break; /* we have a "symbol only label, so we shouldn't skip this label */
       }
@@ -492,6 +498,9 @@ int msAddLabel(mapObj *map, imageObj *image, labelObj *label, int layerindex, in
             }
             return MS_SUCCESS;
           }
+        } else {
+          return MS_SUCCESS; /* label point does not intersect image extent, we cannot know if it intersects
+                                mask, so we discard it (#5237)*/
         }
       } else if (ts && ts->textpath) {
         int i = 0;
@@ -505,6 +514,11 @@ int msAddLabel(mapObj *map, imageObj *image, labelObj *label, int layerindex, in
               free(ts);
               return MS_SUCCESS;
             }
+          } else {
+            freeTextSymbol(ts);
+            free(ts);
+            return MS_SUCCESS; /* label point does not intersect image extent, we cannot know if it intersects
+                                  mask, so we discard it (#5237)*/
           }
         }
       }

@@ -30,9 +30,7 @@
 #define _GNU_SOURCE
 
 #include "mapserver.h"
-
-
-
+#include "mapows.h"
 
 #if defined(USE_SOS_SVR) && defined(USE_LIBXML2)
 
@@ -286,7 +284,7 @@ void msSOSAddPropertyNode(xmlNsPtr psNsSwe, xmlNsPtr psNsXLink, xmlNodePtr psPar
     pszValue = msOWSLookupMetadata(&(lp->metadata), "S",
                                    "observedproperty_name");
     if (pszValue)
-      psNode = xmlNewChild(psCompNode, psNsGml,
+      psNode = xmlNewTextChild(psCompNode, psNsGml,
                            BAD_CAST "name", BAD_CAST pszValue);
 
     /* add components */
@@ -1919,13 +1917,13 @@ this request. Check sos/ows_enable_request settings.", "msSOSGetObservation()", 
             pszBuffer = NULL;
             if (&lp->filter) {
               if (lp->filter.string && strlen(lp->filter.string) > 0)
-                freeExpression(&lp->filter);
+                msFreeExpression(&lp->filter);
             }
 
             /*The filter should reflect the underlying db*/
             /*for ogr add a where clause */
             bSpatialDB = 0;
-            if (lp->connectiontype == MS_POSTGIS ||  lp->connectiontype == MS_ORACLESPATIAL || lp->connectiontype == MS_SDE ||     lp->connectiontype == MS_OGR)
+            if (lp->connectiontype == MS_POSTGIS ||  lp->connectiontype == MS_ORACLESPATIAL || lp->connectiontype == MS_OGR)
               bSpatialDB = 1;
 
 
@@ -1966,7 +1964,7 @@ this request. Check sos/ows_enable_request settings.", "msSOSGetObservation()", 
             if (!bSpatialDB || lp->connectiontype != MS_OGR)
               pszBuffer = msStringConcatenate(pszBuffer, ")");
 
-            loadExpressionString(&lp->filter, pszBuffer);
+            msLoadExpressionString(&lp->filter, pszBuffer);
             if (pszBuffer)
               msFree(pszBuffer);
           }

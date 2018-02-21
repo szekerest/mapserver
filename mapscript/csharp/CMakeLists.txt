@@ -18,9 +18,13 @@ if (WIN32)
     endif(CMAKE_CL_64)
 	set (KEYFILE_SPEC /keyfile:${PROJECT_SOURCE_DIR}\\mapscript\\csharp\\mapscript.snk)
   endif (NOT MSVC71)
-  if (MSVC10)
+  if (MSVC_VERSION GREATER 1500)
       set(PLATFORM_TARGET ${PLATFORM_TARGET} /define:CLR4)
-  endif (MSVC10)
+  endif (MSVC_VERSION GREATER 1500)
+  MESSAGE(STATUS "Cmake build type: ${CMAKE_BUILD_TYPE}")
+  if (CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo") 
+      set(PLATFORM_TARGET ${PLATFORM_TARGET} /debug:full)
+  endif (CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
 endif(WIN32)
 
 MARK_AS_ADVANCED(CSHARP_COMPILER)
@@ -30,14 +34,14 @@ include_directories(${PROJECT_SOURCE_DIR}/mapscript/)
 include_directories(${PROJECT_SOURCE_DIR}/mapscript/csharp)
 SET (CMAKE_SWIG_OUTDIR "${CMAKE_CURRENT_BINARY_DIR}")
 SET( CMAKE_SWIG_FLAGS -namespace OSGeo.MapServer ${MAPSERVER_COMPILE_DEFINITIONS} -DWIN32)
-SWIG_ADD_MODULE(csharpmapscript csharp ../mapscript.i)
+SWIG_ADD_MODULE(mapscript csharp ../mapscript.i)
 
-set_target_properties(csharpmapscript PROPERTIES OUTPUT_NAME "mapscript")
+set_target_properties(mapscript PROPERTIES OUTPUT_NAME "mapscript")
 
-SWIG_LINK_LIBRARIES(csharpmapscript ${MAPSERVER_LIBMAPSERVER})
+SWIG_LINK_LIBRARIES(mapscript ${MAPSERVER_LIBMAPSERVER})
 
 
-ADD_CUSTOM_COMMAND(TARGET csharpmapscript
+ADD_CUSTOM_COMMAND(TARGET mapscript
                       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
                       POST_BUILD
 					  COMMAND copy /Y ..\\..\\..\\mapscript\\csharp\\mapscript.snk
@@ -50,7 +54,9 @@ ADD_CUSTOM_COMMAND(TARGET csharpmapscript
 					  COMMAND ${CSHARP_COMPILER} ${PLATFORM_TARGET} /r:mapscript_csharp.dll /out:HTMLtemplate.exe ${PROJECT_SOURCE_DIR}\\mapscript\\csharp\\examples\\HTMLtemplate.cs
 					  COMMAND ${CSHARP_COMPILER} ${PLATFORM_TARGET} /r:mapscript_csharp.dll /out:RFC24.exe ${PROJECT_SOURCE_DIR}\\mapscript\\csharp\\examples\\RFC24.cs
 					  COMMAND ${CSHARP_COMPILER} ${PLATFORM_TARGET} /r:mapscript_csharp.dll /r:System.Drawing.dll /out:drawmapDirect.exe ${PROJECT_SOURCE_DIR}\\mapscript\\csharp\\examples\\drawmapDirect.cs
-					  COMMAND ${CSHARP_COMPILER} ${PLATFORM_TARGET} /r:mapscript_csharp.dll /r:System.Drawing.dll /out:drawmapDirectPrint.exe ${PROJECT_SOURCE_DIR}\\mapscript\\csharp\\examples\\drawmapDirectPrint.cs	
+					  COMMAND ${CSHARP_COMPILER} ${PLATFORM_TARGET} /r:mapscript_csharp.dll /r:System.Drawing.dll /out:drawmapDirectPrint.exe ${PROJECT_SOURCE_DIR}\\mapscript\\csharp\\examples\\drawmapDirectPrint.cs
+                      COMMAND ${CSHARP_COMPILER} ${PLATFORM_TARGET} /r:mapscript_csharp.dll /r:System.Drawing.dll /out:drawmapGDIPlus.exe ${PROJECT_SOURCE_DIR}\\mapscript\\csharp\\examples\\drawmapGDIPlus.cs
+					  #COMMAND ${CSHARP_COMPILER} ${PLATFORM_TARGET} /lib:C:\Windows\Microsoft.NET\Framework\v4.0.30319\WPF /r:mapscript_csharp.dll /r:System.Xaml.dll /r:WindowsBase.dll /r:PresentationCore.dll /out:drawmapWPF.exe ${PROJECT_SOURCE_DIR}\\mapscript\\csharp\\examples\\drawmapWPF.cs
                       COMMENT "Compiling c# source files"
                       )
 

@@ -127,17 +127,50 @@ int jpeg_buffer_empty_output_buffer (j_compress_ptr cinfo)
   return TRUE;
 }
 
+static void msJPEGErrorExit(j_common_ptr cinfo)
+{
+    jmp_buf* pJmpBuffer = (jmp_buf* ) cinfo->client_data;
+    char buffer[JMSG_LENGTH_MAX];
 
-int saveAsJPEG(mapObj *map /*not used*/, rasterBufferObj *rb, streamInfo *info,
+    /* Create the message */
+    (*cinfo->err->format_message) (cinfo, buffer);
+
+    msSetError(MS_MISCERR,"libjpeg: %s","jpeg_ErrorExit()", buffer);
+
+    /* Return control to the setjmp point */
+    longjmp(*pJmpBuffer, 1);
+}
+
+int saveAsJPEG(mapObj *map, rasterBufferObj *rb, streamInfo *info,
                outputFormatObj *format)
 {
   struct jpeg_compress_struct cinfo;
   struct jpeg_error_mgr jerr;
-  int quality = atoi(msGetOutputFormatOption( format, "QUALITY", "75"));
+  int quality;
+  const char* pszOptimized;
+  int optimized;
+  int arithmetic;
   ms_destination_mgr *dest;
-  JSAMPLE *rowdata;
+  JSAMPLE *rowdata = NULL;
   unsigned int row;
+  jmp_buf setjmp_buffer;
+  
+  quality = atoi(msGetOutputFormatOption( format, "QUALITY", "75"));
+  pszOptimized = msGetOutputFormatOption( format, "OPTIMIZED", "YES");
+  optimized = EQUAL(pszOptimized, "YES") || EQUAL(pszOptimized, "ON") ||
+              EQUAL(pszOptimized, "TRUE");
+  arithmetic = EQUAL(pszOptimized, "ARITHMETIC");
+
+  if (setjmp(setjmp_buffer)) 
+  {
+     jpeg_destroy_compress(&cinfo);
+     free(rowdata);
+     return MS_FAILURE;
+  }
+
   cinfo.err = jpeg_std_error(&jerr);
+  jerr.error_exit = msJPEGErrorExit;
+  cinfo.client_data = (void *) &(setjmp_buffer);
   jpeg_create_compress(&cinfo);
 
   if (cinfo.dest == NULL) {
@@ -167,9 +200,23 @@ int saveAsJPEG(mapObj *map /*not used*/, rasterBufferObj *rb, streamInfo *info,
   cinfo.in_color_space = JCS_RGB;
   jpeg_set_defaults(&cinfo);
   jpeg_set_quality(&cinfo, quality, TRUE);
-  jpeg_start_compress(&cinfo, TRUE);
+  if( arithmetic )
+    cinfo.arith_code = TRUE;
+  else if( optimized )
+    cinfo.optimize_coding = TRUE;
 
+  if( arithmetic || optimized ) {
+    if (map == NULL || msGetConfigOption(map, "JPEGMEM") == NULL) {
+      /* If the user doesn't provide a value for JPEGMEM, we want to be sure */
+      /* that at least the image size will be used before creating the temporary file */
+      cinfo.mem->max_memory_to_use =
+        MS_MAX(cinfo.mem->max_memory_to_use, cinfo.input_components * rb->width * rb->height);
+    }
+  }
+
+  jpeg_start_compress(&cinfo, TRUE);
   rowdata = (JSAMPLE*)malloc(rb->width*cinfo.input_components*sizeof(JSAMPLE));
+
   for(row=0; row<rb->height; row++) {
     JSAMPLE *pixptr = rowdata;
     int col;
@@ -344,11 +391,13 @@ int readPalette(const char *palette, rgbaPixel *entries, unsigned int *nEntries,
       continue; /* skip comments and blank lines */
     if(!useAlpha) {
       if(3 != sscanf(buffer,"%d,%d,%d\n",&r,&g,&b)) {
+        fclose(stream);
         msSetError(MS_MISCERR,"failed to parse color %d r,g,b triplet in line \"%s\" from file %s","readPalette()",*nEntries+1,buffer,palette);
         return MS_FAILURE;
       }
     } else {
       if(4 != sscanf(buffer,"%d,%d,%d,%d\n",&r,&g,&b,&a)) {
+        fclose(stream);
         msSetError(MS_MISCERR,"failed to parse color %d r,g,b,a quadruplet in line \"%s\" from file %s","readPalette()",*nEntries+1,buffer,palette);
         return MS_FAILURE;
       }
@@ -1011,6 +1060,13 @@ int readGIF(char *path, rasterBufferObj *rb)
 
   } while (recordType != TERMINATE_RECORD_TYPE);
 
+
+#if defined GIFLIB_MAJOR && GIFLIB_MINOR && ((GIFLIB_MAJOR == 5 && GIFLIB_MINOR >= 1) || (GIFLIB_MAJOR > 5))
+  if (DGifCloseFile(image, &errcode) == GIF_ERROR) {
+    msSetError(MS_MISCERR,"failed to close gif after loading: %s","readGIF()", gif_error_msg(errcode));
+    return MS_FAILURE;
+  }
+#else
   if (DGifCloseFile(image) == GIF_ERROR) {
 #if defined GIFLIB_MAJOR && GIFLIB_MAJOR >= 5
     msSetError(MS_MISCERR,"failed to close gif after loading: %s","readGIF()", gif_error_msg(image->Error));
@@ -1019,6 +1075,7 @@ int readGIF(char *path, rasterBufferObj *rb)
 #endif
     return MS_FAILURE;
   }
+#endif
 
   return MS_SUCCESS;
 }
@@ -1035,6 +1092,7 @@ int msLoadMSRasterBufferFromFile(char *path, rasterBufferObj *rb)
     return MS_FAILURE;
   }
   if(1 != fread(signature,8,1,stream)) {
+    fclose(stream);
     msSetError(MS_MISCERR, "Unable to read header from image file %s", "msLoadMSRasterBufferFromFile()",path);
     return MS_FAILURE;
   }

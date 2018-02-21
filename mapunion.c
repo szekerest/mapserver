@@ -36,11 +36,11 @@
 
 
 #define MSUNION_NUMITEMS        3
-#define MSUNION_SOURCELAYERNAME        "Union:SourceLayerName"
+#define MSUNION_SOURCELAYERNAME        "Union_SourceLayerName"
 #define MSUNION_SOURCELAYERNAMEINDEX   -100
-#define MSUNION_SOURCELAYERGROUP        "Union:SourceLayerGroup"
+#define MSUNION_SOURCELAYERGROUP        "Union_SourceLayerGroup"
 #define MSUNION_SOURCELAYERGROUPINDEX   -101
-#define MSUNION_SOURCELAYERVISIBLE        "Union:SourceLayerVisible"
+#define MSUNION_SOURCELAYERVISIBLE        "Union_SourceLayerVisible"
 #define MSUNION_SOURCELAYERVISIBLEINDEX   -102
 
 typedef struct {
@@ -295,14 +295,14 @@ void msUnionLayerFreeItemInfo(layerObj *layer)
 void msUnionLayerFreeExpressionTokens(layerObj *layer)
 {
   int i,j;
-  freeExpressionTokens(&(layer->filter));
-  freeExpressionTokens(&(layer->cluster.group));
-  freeExpressionTokens(&(layer->cluster.filter));
+  msFreeExpressionTokens(&(layer->filter));
+  msFreeExpressionTokens(&(layer->cluster.group));
+  msFreeExpressionTokens(&(layer->cluster.filter));
   for(i=0; i<layer->numclasses; i++) {
-    freeExpressionTokens(&(layer->class[i]->expression));
-    freeExpressionTokens(&(layer->class[i]->text));
+    msFreeExpressionTokens(&(layer->class[i]->expression));
+    msFreeExpressionTokens(&(layer->class[i]->text));
     for(j=0; j<layer->class[i]->numstyles; j++)
-      freeExpressionTokens(&(layer->class[i]->styles[j]->_geomtransform));
+      msFreeExpressionTokens(&(layer->class[i]->styles[j]->_geomtransform));
   }
 }
 

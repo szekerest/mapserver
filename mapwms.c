@@ -35,6 +35,7 @@
 #include "mapgml.h"
 #include <ctype.h>
 #include "maptemplate.h"
+#include "mapows.h"
 
 #include "mapogcsld.h"
 #include "mapogcfilter.h"
@@ -50,8 +51,6 @@
 #ifdef WIN32
 #include <process.h>
 #endif
-
-
 
 /* ==================================================================
  * WMS Server stuff.
@@ -187,8 +186,9 @@ int msWMSSetTimePattern(const char *timepatternstring, char *timestring, int che
     atimes = msStringSplit(timestring, ',', &numtimes);
     
     /* get the pattern to use */
-    if (numtimes>0) {      
-      patterns = msStringSplit(timepatternstring, ',', &numpatterns);      
+    if (numtimes > 0) {
+      patterns = msStringSplit(timepatternstring, ',', &numpatterns);
+
       for (j=0; j<numtimes;++j) {
         ranges = msStringSplit(atimes[j],  '/', &numranges);
         for (k=0; k<numranges;++k) {
@@ -198,15 +198,14 @@ int msWMSSetTimePattern(const char *timepatternstring, char *timestring, int che
               msStringTrimBlanks(patterns[i]);
               tmpstr = msStringTrimLeft(patterns[i]);
               if (msTimeMatchPattern(ranges[k], tmpstr) == MS_TRUE) {
-                if (!checkonly) msSetLimitedPattersToUse(tmpstr);
+                if (!checkonly) msSetLimitedPatternsToUse(tmpstr);
                 match = MS_TRUE;
                 break;
               }
             }
           }
           if (match == MS_FALSE) {
-            msSetError(MS_WMSERR, "Time value %s given does not match the time format pattern.",
-                   "msWMSSetTimePattern", ranges[k]);            
+            msSetError(MS_WMSERR, "Time value %s given does not match the time format pattern.", "msWMSSetTimePattern", ranges[k]);
             ret = MS_FAILURE;
             break;
           }
@@ -231,24 +230,22 @@ int msWMSApplyTime(mapObj *map, int version, char *time, char *wms_exception_for
 {
   int i=0;
   layerObj *lp = NULL;
-  const char *timeextent, *timefield, *timedefault, *timpattern = NULL;
+  const char *timeextent, *timefield, *timedefault, *timepattern = NULL;
     
   if (map) {
 
-    timpattern = msOWSLookupMetadata(&(map->web.metadata), "MO",
-                                     "timeformat");
-    
+    timepattern = msOWSLookupMetadata(&(map->web.metadata), "MO", "timeformat");
+
     for (i=0; i<map->numlayers; i++) {
       lp = (GET_LAYER(map, i));
       if (lp->status != MS_ON && lp->status != MS_DEFAULT)
         continue;
+
       /* check if the layer is time aware */
-      timeextent = msOWSLookupMetadata(&(lp->metadata), "MO",
-                                       "timeextent");
-      timefield =  msOWSLookupMetadata(&(lp->metadata), "MO",
-                                       "timeitem");
-      timedefault =  msOWSLookupMetadata(&(lp->metadata), "MO",
-                                         "timedefault");
+      timeextent = msOWSLookupMetadata(&(lp->metadata), "MO", "timeextent");
+      timefield =  msOWSLookupMetadata(&(lp->metadata), "MO", "timeitem");
+      timedefault =  msOWSLookupMetadata(&(lp->metadata), "MO", "timedefault");
+
       if (timeextent && timefield) {
         /* check to see if the time value is given. If not */
         /* use default time. If default time is not available */
@@ -261,22 +258,22 @@ int msWMSApplyTime(mapObj *map, int version, char *time, char *wms_exception_for
             if (msValidateTimeValue((char *)timedefault, timeextent) == MS_FALSE) {
               msSetError(MS_WMSERR, "No Time value was given, and the default time value %s is invalid or outside the time extent defined %s", "msWMSApplyTime", timedefault, timeextent);
               /* return MS_FALSE; */
-              return msWMSException(map, version,
-                                    "InvalidDimensionValue", wms_exception_format);
+              return msWMSException(map, version, "InvalidDimensionValue", wms_exception_format);
             }
             msLayerSetTimeFilter(lp, timedefault, timefield);
           }
         } else {
-          /* check to see if there is a list of possible patterns defined */
-          /* if it is the case, use it to set the time pattern to use */
-          /* for the request.
-
-             Last argument is set to TRUE (checkonly) to not trigger the
-             patterns info setting.. to only apply the wms_timeformats on the
-             user request values, not the mapfile values. */
-          if (timpattern && time && strlen(time) > 0) 
-            if (msWMSSetTimePattern(timpattern, time, MS_TRUE) == MS_FAILURE) 
+          /* 
+	  ** Check to see if there is a list of possible patterns defined. If it is the case, use 
+          ** it to set the time pattern to use for the request.
+          **
+          ** Last argument is set to TRUE (checkonly) to not trigger the patterns info setting, rather 
+          ** to only apply the wms_timeformats on the user request values, not the mapfile values. 
+          */
+          if (timepattern && time && strlen(time) > 0) {
+            if (msWMSSetTimePattern(timepattern, time, MS_TRUE) == MS_FAILURE) 
               return msWMSException(map, version,"InvalidDimensionValue", wms_exception_format);
+          }
           
           /* check if given time is in the range */
           if (msValidateTimeValue(time, timeextent) == MS_FALSE) {
@@ -306,10 +303,10 @@ int msWMSApplyTime(mapObj *map, int version, char *time, char *wms_exception_for
 
     /* last argument is MS_FALSE to trigger a method call that set the patterns
        info. some drivers use it */
-    if (timpattern && time && strlen(time) > 0)
-      if (msWMSSetTimePattern(timpattern, time, MS_FALSE) == MS_FAILURE)
-        return msWMSException(map, version,"InvalidDimensionValue", wms_exception_format);
-    
+    if (timepattern && time && strlen(time) > 0) {
+      if (msWMSSetTimePattern(timepattern, time, MS_FALSE) == MS_FAILURE)
+        return msWMSException(map, version, "InvalidDimensionValue", wms_exception_format);
+    }    
   }
 
   return MS_SUCCESS;
@@ -330,9 +327,15 @@ int msWMSApplyTime(mapObj *map, int version, char *time, char *wms_exception_for
 */
 void msWMSPrepareNestedGroups(mapObj* map, int nVersion, char*** nestedGroups, int* numNestedGroups, int* isUsedInNestedGroup)
 {
-  int i, j, k;
+  int i, k;
   const char* groups;
   char* errorMsg;
+  //Create array to hold unique groups
+  int maxgroups = 2000;
+  int maxgroupiter = 1;
+  char** uniqgroups = msSmallMalloc(maxgroups * sizeof(char*));
+  int uniqgroupcount = 0;
+  
 
   for (i = 0; i < map->numlayers; i++) {
     nestedGroups[i] = NULL; /* default */
@@ -355,23 +358,44 @@ void msWMSPrepareNestedGroups(mapObj* map, int nVersion, char*** nestedGroups, i
         } else {
           /* split into subgroups. Start at address + 1 because the first '/' would cause an extra empty group */
           nestedGroups[i] = msStringSplit(groups + 1, '/', &numNestedGroups[i]);
-          /* */
-          for (j = 0; j < map->numlayers; j++) {
-            if (isUsedInNestedGroup[j])
-              continue;
-
-            for (k=0; k<numNestedGroups[i]; k++) {
-              if ( GET_LAYER(map, j)->name && strcasecmp(GET_LAYER(map, j)->name, nestedGroups[i][k]) == 0 ) {
-                isUsedInNestedGroup[j] = 1;
+          /* Iterate through the groups and add them to the unique groups array */
+          for (k=0; k<numNestedGroups[i]; k++) {
+            int found ,l = 0;
+            found = 0;
+            for (l=0; l<uniqgroupcount; l++) {
+              if ( strcasecmp(uniqgroups[l], nestedGroups[i][k]) == 0 ){
+                found = 1;
                 break;
               }
             }
-          }
+            if(found == 0){
+             uniqgroups[uniqgroupcount] = nestedGroups[i][k];
+             uniqgroupcount++;
+             // Does need only when maximum unique groups exceed 2000
+             if ( uniqgroupcount == (maxgroups*maxgroupiter)){
+                uniqgroups = realloc(uniqgroups, (uniqgroupcount + maxgroups) * sizeof(char*));
+                maxgroupiter++;
+             }
+            }
+         }
+       } 
+     }
+   }
+ } 
+ /* Iterate through layers to find out whether they are in any of the nested groups */
+ for (i = 0; i < map->numlayers; i++) {
+    for (k=0; k<uniqgroupcount; k++) {
+       if ( strcasecmp(GET_LAYER(map, i)->name ,uniqgroups[k]) == 0 ){
+             isUsedInNestedGroup[i] = 1;
+             break;
         }
-      }
-    }
+     }
   }
+
+  /* free uniqgroups */
+  free(uniqgroups);
 }
+
 
 /*
 ** Validate that a given dimension is inside the extents defined
@@ -661,6 +685,7 @@ int msWMSApplyDimensionLayer(layerObj *lp, const char *item, char *value, int fo
 {
   int result = MS_FALSE;
   char *pszExpression=NULL;
+  int tlpindex = -1;
 
   if (lp && item && value) {
     /*for the value, we support descrete values (2005) */
@@ -669,8 +694,17 @@ int msWMSApplyDimensionLayer(layerObj *lp, const char *item, char *value, int fo
     pszExpression = FLTGetExpressionForValuesRanges(lp, (char *)item, value,  forcecharcter);
 
     if (pszExpression) {
+      // If tileindex is set, the filter is applied to tileindex too.
+      if (lp->tileindex && (tlpindex = msGetLayerIndex(lp->map, lp->tileindex)) != -1) {
+          if(FLTApplyExpressionToLayer((GET_LAYER(lp->map, tlpindex)), pszExpression))
+            result = MS_TRUE;
+          else
+            result = MS_FALSE;
+      }
       if(FLTApplyExpressionToLayer(lp, pszExpression))
         result = MS_TRUE;
+      else
+        result = MS_FALSE;
       msFree(pszExpression);
     }
   }
@@ -757,7 +791,6 @@ int msWMSLoadGetMapParams(mapObj *map, int nVersion,
                           const char *wms_request, owsRequestObj *ows_request)
 {
   int i, adjust_extent = MS_FALSE, nonsquare_enabled = MS_FALSE;
-  int iUnits = -1;
   int nLayerOrder = 0;
   int transparent = MS_NOOVERRIDE;
   int bbox_pixel_is_point = MS_FALSE;
@@ -1289,7 +1322,7 @@ this request. Check wms/ows_enable_request settings.",
   ** Validate first against epsg in the map and if no matching srs is found
   ** validate all layers requested.
   */
-  if (epsgbuf != NULL && strlen(epsgbuf) > 1) {
+  if (epsgbuf[0] && epsgbuf[1]) { /*at least 2 chars*/
     epsgvalid = MS_FALSE;
     projstring = msOWSGetEPSGProj(&(map->projection), &(map->web.metadata),
                                   "MO", MS_FALSE);
@@ -1432,9 +1465,10 @@ this request. Check wms/ows_enable_request settings.",
     if (nTmp != 0)
       return msWMSException(map, nVersion, NULL, wms_exception_format);
 
-    iUnits = GetMapserverUnitUsingProj(&(map->projection));
-    if (iUnits != -1)
-      map->units = iUnits;
+    nTmp = GetMapserverUnitUsingProj(&(map->projection));
+    if( nTmp != -1 ) {
+      map->units = nTmp;
+    }
   }
 
   if (sld_url || sld_body) {

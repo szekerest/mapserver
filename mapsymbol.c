@@ -35,6 +35,7 @@
 #include "mapcopy.h"
 #include "mapthread.h"
 #include "fontcache.h"
+#include "mapows.h"
 
 
 
@@ -299,12 +300,18 @@ void writeSymbol(symbolObj *s, FILE *stream)
     case(MS_SYMBOL_PIXMAP):
       msIO_fprintf(stream, "    TYPE PIXMAP\n");
       if(s->imagepath != NULL) msIO_fprintf(stream, "    IMAGE \"%s\"\n", s->imagepath);
+      if(s->anchorpoint_y!=0.5 || s->anchorpoint_x!=0.5) {
+        msIO_fprintf(stream, "    ANCHORPOINT %g %g\n", s->anchorpoint_x, s->anchorpoint_y);
+      }
       msIO_fprintf(stream, "    TRANSPARENT %d\n", s->transparentcolor);
       break;
     case(MS_SYMBOL_TRUETYPE):
       msIO_fprintf(stream, "    TYPE TRUETYPE\n");
       if (s->character != NULL) msIO_fprintf(stream, "    CHARACTER \"%s\"\n", s->character);
       if (s->font != NULL) msIO_fprintf(stream, "    FONT \"%s\"\n", s->font);
+      if(s->anchorpoint_y!=0.5 || s->anchorpoint_x!=0.5) {
+        msIO_fprintf(stream, "    ANCHORPOINT %g %g\n", s->anchorpoint_x, s->anchorpoint_y);
+      }
       break;
     default:
       if(s->type == MS_SYMBOL_ELLIPSE)
@@ -318,6 +325,9 @@ void writeSymbol(symbolObj *s, FILE *stream)
 
       if(s->filled == MS_TRUE) msIO_fprintf(stream, "    FILLED TRUE\n");
       if(s->imagepath != NULL) msIO_fprintf(stream, "    IMAGE \"%s\"\n", s->imagepath);
+      if(s->anchorpoint_y!=0.5 || s->anchorpoint_x!=0.5) {
+        msIO_fprintf(stream, "    ANCHORPOINT %g %g\n", s->anchorpoint_x, s->anchorpoint_y);
+      }
 
       /* POINTS */
       if(s->numpoints != 0) {
@@ -797,6 +807,21 @@ symbolObj *msRemoveSymbol(symbolSetObj *symbolset, int nSymbolIndex)
                 }
                 for (lb = 0; lb < cl->numlabels; lb++) {
                     label = cl->labels[lb];
+                    for (s = 0; s < label->numstyles; s++) {
+                        style = label->styles[s];
+                        if (style->symbol >= nSymbolIndex)
+                            --style->symbol;
+                    }
+                }
+            }
+        }
+        /* Update symbol references in labelcache */
+        for(c = 0; c < MS_MAX_LABEL_PRIORITY; c++) {
+            labelCacheSlotObj *cacheslot = &(symbolset->map->labelcache.slots[c]);
+            for(l = 0; l < cacheslot->numlabels; l++) {
+                labelCacheMemberObj *cachePtr = &(cacheslot->labels[l]);
+                for(lb = 0; lb < cachePtr->numtextsymbols; lb++) {
+                    label = cachePtr->textsymbols[lb]->label;
                     for (s = 0; s < label->numstyles; s++) {
                         style = label->styles[s];
                         if (style->symbol >= nSymbolIndex)

@@ -46,13 +46,14 @@
 
 
 static int is_msIO_initialized = MS_FALSE;
+static int is_msIO_header_enabled = MS_TRUE;
 
 typedef struct msIOContextGroup_t {
   msIOContext stdin_context;
   msIOContext stdout_context;
   msIOContext stderr_context;
 
-  int    thread_id;
+  void*    thread_id;
   struct msIOContextGroup_t *next;
 } msIOContextGroup;
 
@@ -94,7 +95,7 @@ void msIO_Cleanup()
 static msIOContextGroup *msIO_GetContextGroup()
 
 {
-  int nThreadId = msGetThreadId();
+  void* nThreadId = msGetThreadId();
   msIOContextGroup *prev = NULL, *group = io_context_list;
 
   if( group != NULL && group->thread_id == nThreadId )
@@ -148,7 +149,7 @@ static msIOContextGroup *msIO_GetContextGroup()
 /* returns MS_TRUE if the msIO standard output hasn't been redirected */
 int msIO_isStdContext() {
   msIOContextGroup *group = io_context_list;
-  int nThreadId = msGetThreadId();
+  void* nThreadId = msGetThreadId();
   if(!group || group->thread_id != nThreadId) {
     group = msIO_GetContextGroup();
     if(!group) {
@@ -169,7 +170,7 @@ int msIO_isStdContext() {
 msIOContext *msIO_getHandler( FILE * fp )
 
 {
-  int nThreadId = msGetThreadId();
+  void* nThreadId = msGetThreadId();
   msIOContextGroup *group = io_context_list;
 
   msIO_Initialize();
@@ -189,6 +190,19 @@ msIOContext *msIO_getHandler( FILE * fp )
   else
     return NULL;
 }
+
+/************************************************************************/
+/*                      msIO_setHeaderEnabled()                         */
+/************************************************************************/
+
+void msIO_setHeaderEnabled(int bFlag)
+{
+    is_msIO_header_enabled = bFlag;
+}
+
+/************************************************************************/
+/*                           msIO_setHeader()                           */
+/************************************************************************/
 
 void msIO_setHeader (const char *header, const char* value, ...)
 {
@@ -212,9 +226,11 @@ void msIO_setHeader (const char *header, const char* value, ...)
     }
   } else {
 #endif // MOD_WMS_ENABLED
-    msIO_fprintf(stdout,"%s: ",header);
-    msIO_vfprintf(stdout,value,args);
-    msIO_fprintf(stdout,"\r\n");
+   if( is_msIO_header_enabled ) {
+      msIO_fprintf(stdout,"%s: ",header);
+      msIO_vfprintf(stdout,value,args);
+      msIO_fprintf(stdout,"\r\n");
+   }
 #ifdef MOD_WMS_ENABLED
   }
 #endif
@@ -227,8 +243,10 @@ void msIO_sendHeaders ()
   msIOContext *ioctx = msIO_getHandler (stdout);
   if(ioctx && !strcmp(ioctx->label,"apache")) return;
 #endif // !MOD_WMS_ENABLED
-  msIO_printf ("\r\n");
-  fflush (stdout);
+  if( is_msIO_header_enabled ) {
+    msIO_printf ("\r\n");
+    fflush (stdout);
+  }
 }
 
 
@@ -737,6 +755,126 @@ void msIO_installStdinFromBuffer()
   msIO_installHandlers( &context,
                         &group->stdout_context,
                         &group->stderr_context );
+}
+
+/************************************************************************/
+/*              msIO_getAndStripStdoutBufferMimeHeaders()               */
+/*                                                                      */
+/************************************************************************/
+
+hashTableObj* msIO_getAndStripStdoutBufferMimeHeaders()
+{
+  /* -------------------------------------------------------------------- */
+  /*      Find stdout buffer.                                             */
+  /* -------------------------------------------------------------------- */
+  msIOContext *ctx = msIO_getHandler( (FILE *) "stdout" );
+  msIOBuffer  *buf;
+  int start_of_mime_header, current_pos;
+  hashTableObj* hashTable;
+
+  if( ctx == NULL || ctx->write_channel == MS_FALSE
+      || strcmp(ctx->label,"buffer") != 0 ) {
+    msSetError( MS_MISCERR, "Can't identify msIO buffer.",
+                "msIO_getAndStripStdoutBufferMimeHeaders" );
+    return NULL;
+  }
+
+  buf = (msIOBuffer *) ctx->cbData;
+
+  hashTable = msCreateHashTable();
+
+  /* -------------------------------------------------------------------- */
+  /*      Loop over all headers.                                          */
+  /* -------------------------------------------------------------------- */
+  current_pos = 0;
+  while( TRUE ) {
+    int pos_of_column = -1;
+    char* key, *value;
+
+    start_of_mime_header = current_pos;
+    while( current_pos < buf->data_offset )
+    {
+        if( buf->data[current_pos] == '\r' )
+        {
+            if( current_pos + 1 == buf->data_offset ||
+                buf->data[current_pos + 1] != '\n' )
+            {
+                pos_of_column = -1;
+                break;
+            }
+            break;
+        }
+        if( buf->data[current_pos] == ':' )
+        {
+            pos_of_column = current_pos;
+            if( current_pos + 1 == buf->data_offset ||
+                buf->data[current_pos + 1] != ' ' )
+            {
+                pos_of_column = -1;
+                break;
+            }
+        }
+        current_pos++;
+    }
+
+    if( pos_of_column < 0 || current_pos == buf->data_offset ) {
+      msSetError( MS_MISCERR, "Corrupt mime headers.",
+                  "msIO_getAndStripStdoutBufferMimeHeaders" );
+      msFreeHashTable(hashTable);
+      return NULL;
+    }
+
+    key = (char*) malloc( pos_of_column - start_of_mime_header + 1 );
+    memcpy( key, buf->data+start_of_mime_header, pos_of_column - start_of_mime_header);
+    key[pos_of_column - start_of_mime_header] = '\0';
+
+    value = (char*) malloc( current_pos - (pos_of_column+2) + 1 );
+    memcpy( value, buf->data+pos_of_column+2, current_pos - (pos_of_column+2));
+    value[current_pos - (pos_of_column+2)] = '\0';
+
+    msInsertHashTable( hashTable, key, value );
+
+    msFree( key );
+    msFree( value );
+
+    /* -------------------------------------------------------------------- */
+    /*      Go to next line.                                                */
+    /* -------------------------------------------------------------------- */
+    current_pos += 2;
+    if( current_pos == buf->data_offset )
+    {
+      msSetError( MS_MISCERR, "Corrupt mime headers.",
+                  "msIO_getAndStripStdoutBufferMimeHeaders" );
+      msFreeHashTable(hashTable);
+      return NULL;
+    }
+
+    /* If next line is a '\r', this is the end of mime headers. */
+    if( buf->data[current_pos] == '\r' )
+    {
+        current_pos ++;
+        if( current_pos == buf->data_offset ||
+            buf->data[current_pos] != '\n' )
+        {
+            msSetError( MS_MISCERR, "Corrupt mime headers.",
+                        "msIO_getAndStripStdoutBufferMimeHeaders" );
+            msFreeHashTable(hashTable);
+            return NULL;
+        }
+        current_pos ++;
+        break;
+    }
+  }
+
+  /* -------------------------------------------------------------------- */
+  /*      Move data to front of buffer, and reset length.                 */
+  /* -------------------------------------------------------------------- */
+  memmove( buf->data, buf->data+current_pos,
+           buf->data_offset - current_pos );
+  buf->data[buf->data_offset - current_pos] = '\0';
+  buf->data_offset -= current_pos;
+
+  return hashTable;
 }
 
 /************************************************************************/

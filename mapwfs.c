@@ -28,6 +28,7 @@
  ****************************************************************************/
 
 #include "mapserver.h"
+#include "mapows.h"
 
 
 
@@ -36,6 +37,7 @@
 /* There is a dependency to GDAL/OGR for the GML driver and MiniXML parser */
 #include "cpl_minixml.h"
 #include "cpl_conv.h"
+#include "cpl_string.h"
 
 #include "mapogcfilter.h"
 #include "mapowscommon.h"
@@ -368,9 +370,21 @@ static int msWFSGetFeatureApplySRS(mapObj *map, const char *srs, int nWFSVersion
       same srs. For wfs 1.1.0 an srsName can be passed, we should validate that It is valid for all
       queries layers
   */
+
+  /* Start by applying the default service SRS to the mapObj, 
+   * make sure we reproject the map extent if a projection was 
+   * already set 
+   */
   pszMapSRS = msOWSGetEPSGProj(&(map->projection), &(map->web.metadata), "FO", MS_TRUE);
-  if(pszMapSRS && nWFSVersion >  OWS_1_0_0)
+  if(pszMapSRS && nWFSVersion >  OWS_1_0_0){
+    projectionObj proj;
+    msInitProjection(&proj);
+    if (map->projection.numargs > 0 && msLoadProjectionStringEPSG(&proj, pszMapSRS) == 0) {
+      msProjectRect(&(map->projection), &proj, &map->extent);
+    }
     msLoadProjectionStringEPSG(&(map->projection), pszMapSRS);
+    msFreeProjection(&proj);
+  }
 
   if (srs == NULL || nWFSVersion == OWS_1_0_0) {
     for (i=0; i<map->numlayers; i++) {
@@ -983,12 +997,37 @@ static void msWFSWriteGeometryElement(FILE *stream, gmlGeometryListObj *geometry
   return;
 }
 
+static OWSGMLVersion msWFSGetGMLVersionFromSchemaVersion(WFSSchemaVersion outputformat)
+{
+    switch( outputformat )
+    {
+        case OWS_DEFAULT_SCHEMA:
+            return OWS_GML2;
+        case OWS_SFE_SCHEMA:
+            return OWS_GML3;
+        case OWS_GML32_SFE_SCHEMA:
+            return OWS_GML32;
+    }
+    return OWS_GML2;
+}
+
+static void msWFSSchemaWriteGeometryElement(FILE *stream, gmlGeometryListObj *geometryList, WFSSchemaVersion outputformat, const char *tab)
+{
+  OWSGMLVersion gmlversion = msWFSGetGMLVersionFromSchemaVersion(outputformat);
+  return msWFSWriteGeometryElement(stream,geometryList,gmlversion,tab);
+}
+
 static const char* msWFSMapServTypeToXMLType(const char* type)
 {
     const char *element_type = "string";
     /* Map from MapServer types to XSD types */
     if( strcasecmp(type,"Integer") == 0 )
       element_type = "integer";
+    /* Note : xs:int and xs:integer differ */
+    else if ( EQUAL(type,"int") )
+      element_type = "int";
+    if( strcasecmp(type,"Long") == 0 ) /* 64bit integer */
+      element_type = "long";
     else if( EQUAL(type,"Real") ||
              EQUAL(type,"double") /* just in case someone provided the xsd type directly */ )
       element_type = "double";
@@ -1138,7 +1177,7 @@ static const char* msWFSGetGMLNamespaceURI(WFSSchemaVersion outputformat)
     return "http://unknown";
 }
 
-static const char* msWFSGetGMLNamespaceURIFromGMLVersion(WFSSchemaVersion outputformat)
+static const char* msWFSGetGMLNamespaceURIFromGMLVersion(OWSGMLVersion outputformat)
 {
     switch( outputformat )
     {
@@ -1150,20 +1189,6 @@ static const char* msWFSGetGMLNamespaceURIFromGMLVersion(WFSSchemaVersion output
             return MS_OWSCOMMON_GML_32_NAMESPACE_URI;
     }
     return "http://unknown";
-}
-
-static OWSGMLVersion msWFSGetGMLVersionFromSchemaVersion(WFSSchemaVersion outputformat)
-{
-    switch( outputformat )
-    {
-        case OWS_DEFAULT_SCHEMA:
-            return OWS_GML2;
-        case OWS_SFE_SCHEMA:
-            return OWS_GML3;
-        case OWS_GML32_SFE_SCHEMA:
-            return OWS_GML32;
-    }
-    return OWS_GML2;
 }
 
 static void msWFS_NS_printf(const char* prefix, const char* uri)
@@ -1473,7 +1498,7 @@ this request. Check wfs/ows_enable_request settings.", "msWFSDescribeFeatureType
           msIO_printf("        <sequence>\n");
 
           /* write the geometry schema element(s) */
-          msWFSWriteGeometryElement(stdout, geometryList, outputformat, "          ");
+          msWFSSchemaWriteGeometryElement(stdout, geometryList, outputformat, "          ");
 
           /* write the constant-based schema elements */
           for(k=0; k<constantList->numconstants; k++) {
@@ -2041,10 +2066,12 @@ static int msWFSRunFilter(mapObj* map,
         return msWFSException(map, "mapserv", MS_OWS_ERROR_NO_APPLICABLE_CODE, paramsObj->pszVersion);
     }
 
+    FLTProcessPropertyIsNull(psNode, map, lp->index);
+
     /*preparse the filter for gml aliases*/
     FLTPreParseFilterForAliasAndGroup(psNode, map, lp->index, "G");
 
-    /* Check that FeatureId filters are consistant with the active layer */
+    /* Check that FeatureId filters are consistent with the active layer */
     if( FLTCheckFeatureIdFilters(psNode, map, lp->index) == MS_FAILURE)
     {
         FLTFreeFilterEncodingNode( psNode );
@@ -2112,6 +2139,7 @@ static int msWFSRunBasicGetFeature(mapObj* map,
     const char *pszMapSRS=NULL, *pszLayerSRS=NULL;
     rectObj ext;
     int status;
+    const char* pszUseDefaultExtent;
     
     map->query.type = MS_QUERY_BY_RECT; /* setup the query */
     map->query.mode = MS_QUERY_MULTIPLE;
@@ -2123,7 +2151,15 @@ static int msWFSRunBasicGetFeature(mapObj* map,
     if(!paramsObj->pszSrs)
         pszMapSRS = msOWSGetEPSGProj(&(map->projection), &(map->web.metadata), "FO", MS_TRUE);
 
-    if (msOWSGetLayerExtent(map, lp, "FO", &ext) == MS_SUCCESS) {
+    pszUseDefaultExtent = msOWSLookupMetadata(&(lp->metadata), "F",
+                                              "use_default_extent_for_getfeature");
+    if( pszUseDefaultExtent && !CSLTestBoolean(pszUseDefaultExtent) &&
+        lp->connectiontype == MS_OGR )
+    {
+        const rectObj rectInvalid = MS_INIT_INVALID_RECT;
+        map->query.rect = rectInvalid;
+    }
+    else if (msOWSGetLayerExtent(map, lp, "FO", &ext) == MS_SUCCESS) {
 
         /* For a single point layer, to avoid numerical precision issues */
         /* when reprojection is involved */
@@ -2182,6 +2218,79 @@ static int msWFSRunBasicGetFeature(mapObj* map,
 }
 
 /*
+** msWFSSplitFilters()
+*/
+static char** msWFSSplitFilters(const char* pszStr, int* pnTokens)
+{
+    const char* pszTokenBegin;
+    char** papszRet = NULL;
+    int nTokens = 0;
+    char chStringQuote = '\0';
+    int nXMLIndent = 0;
+    int bInBracket = FALSE;
+
+    if( *pszStr != '(' )
+    {
+        *pnTokens = 0;
+        return NULL;
+    }
+    pszStr ++;
+    pszTokenBegin = pszStr;
+    while( *pszStr != '\0' )
+    {
+        /* Ignore any character until end of quoted string */
+        if( chStringQuote != '\0' )
+        {
+            if( *pszStr == chStringQuote )
+                chStringQuote = 0;
+        }
+        /* Detect begin of quoted string only for an XML attribute, i.e. between < and > */
+        else if( bInBracket && (*pszStr == '\'' || *pszStr == '"') )
+        {
+            chStringQuote = *pszStr;
+        }
+        /* Begin of XML element */
+        else if( *pszStr == '<' )
+        {
+            bInBracket = TRUE;
+            if( pszStr[1] == '/' )
+                nXMLIndent --;
+            else if( pszStr[1] != '!' )
+                nXMLIndent ++;
+        }
+        /* <something /> case */
+        else if (*pszStr == '/' && pszStr[1] == '>' )
+        {
+            bInBracket = FALSE;
+            nXMLIndent --;
+            pszStr ++;
+        }
+        /* End of XML element */
+        else if( *pszStr == '>' )
+        {
+            bInBracket = FALSE;
+        }
+        /* Only detect and of filter when XML indentation goes back to zero */
+        else if( nXMLIndent == 0 && *pszStr == ')' )
+        {
+            papszRet = (char**) msSmallRealloc(papszRet, sizeof(char*) * (nTokens + 1));
+            papszRet[nTokens] = msStrdup(pszTokenBegin);
+            papszRet[nTokens][pszStr - pszTokenBegin] = '\0';
+            nTokens ++;
+            if( pszStr[1] != '(' )
+            {
+                break;
+            }
+            pszStr ++;
+            pszTokenBegin = pszStr + 1;
+        }
+        pszStr ++;
+    }
+    *pnTokens = nTokens;
+    return papszRet;
+}
+
+/*
 ** msWFSRetrieveFeatures()
 */
 static int msWFSRetrieveFeatures(mapObj* map,
@@ -2205,7 +2314,6 @@ static int msWFSRetrieveFeatures(mapObj* map,
 
 #ifdef USE_OGR
   if (pszFilter && strlen(pszFilter) > 0) {
-    char **tokens = NULL;
     int nFilters;
     char **paszFilter = NULL;
 
@@ -2266,22 +2374,10 @@ static int msWFSRetrieveFeatures(mapObj* map,
     /* -------------------------------------------------------------------- */
     nFilters = 0;
     if (strlen(pszFilter) > 0 && pszFilter[0] == '(') {
-      tokens = msStringSplit(pszFilter+1, '(', &nFilters);
+      paszFilter = msWFSSplitFilters(pszFilter, &nFilters);
 
-      if (tokens &&  nFilters > 0 && numlayers == nFilters) {
-        paszFilter = (char **)msSmallMalloc(sizeof(char *)*nFilters);
-        for (i=0; i<nFilters; i++)
-        {
-          size_t nLen;
-          paszFilter[i] = msStrdup(tokens[i]);
-          nLen = strlen(paszFilter[i]);
-          if( nLen > 0 && paszFilter[i][nLen-1] == ')' )
-              paszFilter[i][nLen-1] = '\0';
-        }
-      }
-
-      if (tokens &&  nFilters > 0 ) {
-        msFreeCharArray(tokens, nFilters);
+      if ( paszFilter && nFilters > 0 && numlayers != nFilters ) {
+        msFreeCharArray(paszFilter, nFilters);
       }
     } else if (numlayers == 1) {
       nFilters=1;
@@ -2335,8 +2431,8 @@ static int msWFSRetrieveFeatures(mapObj* map,
 
 
   if (pszFeatureId != NULL) {
-    char **tokens = NULL, **tokens1=NULL ;
-    int nTokens = 0, j=0, nTokens1=0, k=0;
+    char **tokens = NULL;
+    int nTokens = 0, j=0, k=0;
     FilterEncodingNode *psNode = NULL;
     char **aFIDLayers = NULL;
     char **aFIDValues = NULL;
@@ -2359,19 +2455,25 @@ static int msWFSRetrieveFeatures(mapObj* map,
         aFIDValues[j] = NULL;
       }
       for (j=0; j<nTokens; j++) {
-        tokens1 = msStringSplit(tokens[j], '.', &nTokens1);
-        if (tokens1 && nTokens1 == 2) {
+        const char* pszLastDot = strrchr(tokens[j], '.');
+        if (pszLastDot != NULL) {
+          char* pszLayerInFID = msStrdup(tokens[j]);
+          pszLayerInFID[pszLastDot - tokens[j]] = '\0';
+          /* Find if the layer is already requested */
           for (k=0; k<iFIDLayers; k++) {
-            if (strcasecmp(aFIDLayers[k], tokens1[0]) == 0)
+            if (strcasecmp(aFIDLayers[k], pszLayerInFID) == 0)
               break;
           }
+          /* If not, add it to the list of requested layers */
           if (k == iFIDLayers) {
-            aFIDLayers[iFIDLayers] = msStrdup(tokens1[0]);
+            aFIDLayers[iFIDLayers] = msStrdup(pszLayerInFID);
             iFIDLayers++;
           }
+          /* Add the id to the list of search identifiers of the layer */
           if (aFIDValues[k] != NULL)
             aFIDValues[k] = msStringConcatenate(aFIDValues[k], ",");
-          aFIDValues[k] = msStringConcatenate( aFIDValues[k], tokens1[1]);
+          aFIDValues[k] = msStringConcatenate( aFIDValues[k], pszLastDot + 1);
+          msFree(pszLayerInFID);
         } else {
           /* In WFS 20, an unknown/invalid feature id shouldn't trigger an */
           /* exception. Tested by CITE */
@@ -2381,15 +2483,11 @@ static int msWFSRetrieveFeatures(mapObj* map,
                        "msWFSGetFeature()", tokens[j]);
             if (tokens)
               msFreeCharArray(tokens, nTokens);
-            if (tokens1)
-              msFreeCharArray(tokens1, nTokens1);
             msFreeCharArray(aFIDLayers, iFIDLayers);
             msFreeCharArray(aFIDValues, iFIDLayers);
             return msWFSException(map, "featureid", MS_OWS_ERROR_INVALID_PARAMETER_VALUE, paramsObj->pszVersion);
           }
         }
-        if (tokens1)
-          msFreeCharArray(tokens1, nTokens1);
       }
     }
     if (tokens)
@@ -4065,6 +4163,7 @@ int msWFSGetPropertyValue(mapObj *map, wfsParamsObj *paramsObj, cgiRequestObj *r
                 if (z == geometryList->numgeometries) {
                   msSetError(MS_WFSERR,
                             "Invalid VALUEREFERENCE %s",  "msWFSGetPropertyValue()", paramsObj->pszValueReference);
+                  msFree(pszGMLGroups);
                   msGMLFreeItems(itemList);
                   msGMLFreeGroups(groupList);
                   msGMLFreeGeometries(geometryList);
@@ -4133,8 +4232,12 @@ int msWFSGetPropertyValue(mapObj *map, wfsParamsObj *paramsObj, cgiRequestObj *r
                                         &maxfeatures, &startindex);
 
   status = msWFSAnalyzeBBOX(map, paramsObj, &bbox, &sBBoxSrs);
-  if( status != 0 )
+  if( status != 0 ) {
+      msFree(pszGMLGroups);
+      msFree(pszGMLIncludeItems);
+      msFree(pszGMLGeometries);
       return status;
+      }
 
   if( iResultTypeHits == 1 )
   {
