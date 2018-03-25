@@ -155,6 +155,9 @@ ft_cache* msGetFontCache() {
 }
 
 void msFontCacheSetup() {
+  if (ft_caches)
+    msFontCacheCleanup();
+
 #ifndef USE_THREAD
   ft_cache *c = msGetFontCache();
   msInitFontCache(c);
