@@ -1096,12 +1096,26 @@ Returns the number of inline feature of a layer
 */
 int msLayerGetNumFeatures(layerObj *layer)
 {
+  int need_to_close = MS_FALSE, status = MS_SUCCESS;
+
+  if (!msLayerIsOpen(layer)) {
+      if (msLayerOpen(layer) != MS_SUCCESS)
+          return MS_FAILURE;
+      need_to_close = MS_TRUE;
+  }
+  
   if ( ! layer->vtable) {
     int rv =  msInitializeVirtualTable(layer);
     if (rv != MS_SUCCESS)
       return rv;
   }
-  return layer->vtable->LayerGetNumFeatures(layer);
+  
+  status = layer->vtable->LayerGetNumFeatures(layer);
+
+  if (need_to_close)
+      msLayerClose(layer);
+
+  return(status);
 }
 
 void
