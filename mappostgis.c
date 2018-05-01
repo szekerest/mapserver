@@ -3299,7 +3299,7 @@ int msPostGISLayerGetNumFeatures(layerObj *layer)
     layerinfo = (msPostGISLayerInfo *)layer->layerinfo;
 
     if (msPostGISParseData(layer) != MS_SUCCESS) {
-        return MS_FAILURE;
+        return -1;
     }
 
     /* if we have !BOX! substitution then we use just the table name */
@@ -3310,7 +3310,7 @@ int msPostGISLayerGetNumFeatures(layerObj *layer)
 
     if (!f_table_name) {
         msSetError(MS_MISCERR, "Failed to get table name.", "msPostGISLayerGetExtent()");
-        return MS_FAILURE;
+        return -1;
     }
 
     /* Handle a translated filter (RFC91). */
@@ -3367,7 +3367,7 @@ int msPostGISLayerGetNumFeatures(layerObj *layer)
         if (pgresult)
             PQclear(pgresult);
 
-        return MS_FAILURE;
+        return -1;
     }
 
     /* process results */
@@ -3375,14 +3375,14 @@ int msPostGISLayerGetNumFeatures(layerObj *layer)
         msSetError(MS_MISCERR, "msPostGISLayerGetNumFeatures: No results found.",
             "msPostGISLayerGetNumFeatures()");
         PQclear(pgresult);
-        return MS_FAILURE;
+        return -1;
     }
 
     if (PQgetisnull(pgresult, 0, 0)) {
         msSetError(MS_MISCERR, "msPostGISLayerGetNumFeatures: Null result returned.",
             "msPostGISLayerGetNumFeatures()");
         PQclear(pgresult);
-        return MS_FAILURE;
+        return -1;
     }
 
     tmp = PQgetvalue(pgresult, 0, 0);
@@ -3399,7 +3399,7 @@ int msPostGISLayerGetNumFeatures(layerObj *layer)
     return result;
 #else
     msSetError(MS_MISCERR, "PostGIS support is not available.", "msPostGISLayerGetNumFeatures()");
-    return MS_FAILURE;
+    return -1;
 #endif
 }
 
