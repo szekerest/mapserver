@@ -511,7 +511,7 @@ static void searchDiskTreeNode(SHPTreeHandle disktree, rectObj aoi, ms_bitarray 
   return;
 }
 
-ms_bitarray msSearchDiskTree(const char *filename, rectObj aoi, int debug)
+ms_bitarray msSearchDiskTree(const char *filename, rectObj aoi, int debug, int numshapes)
 {
   SHPTreeHandle disktree;
   ms_bitarray status=NULL;
@@ -523,6 +523,12 @@ ms_bitarray msSearchDiskTree(const char *filename, rectObj aoi, int debug)
     if(debug) msSetError(MS_NOTFOUND, "Unable to open spatial index for %s. In most cases you can safely ignore this message, otherwise check file names and permissions.", "msSearchDiskTree()", filename);
 
     return(NULL);
+  }
+
+  if (disktree->nShapes != numshapes) {
+      msSetError(MS_SHPERR, "The spatial index file %s is corrupt.", "msSearchDiskTree()", filename);
+      msSHPDiskTreeClose(disktree);
+      return(NULL);
   }
 
   status = msAllocBitArray(disktree->nShapes);
