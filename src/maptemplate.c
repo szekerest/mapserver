@@ -219,13 +219,13 @@ int setExtent(mapservObj *mapserv) {
         msInchesPerUnit(mapserv->map->units,
                         0); /* user supplied a point and a scale denominator */
     mapserv->map->extent.minx =
-        mapserv->mappnt.x - cellsize * (mapserv->map->width - 1) / 2.0;
+        mapserv->mappnt.x - cellsize * (mapserv->map->width) / 2.0;
     mapserv->map->extent.miny =
-        mapserv->mappnt.y - cellsize * (mapserv->map->height - 1) / 2.0;
+        mapserv->mappnt.y - cellsize * (mapserv->map->height) / 2.0;
     mapserv->map->extent.maxx =
-        mapserv->mappnt.x + cellsize * (mapserv->map->width - 1) / 2.0;
+        mapserv->mappnt.x + cellsize * (mapserv->map->width) / 2.0;
     mapserv->map->extent.maxy =
-        mapserv->mappnt.y + cellsize * (mapserv->map->height - 1) / 2.0;
+        mapserv->mappnt.y + cellsize * (mapserv->map->height) / 2.0;
     break;
   default: /* use the default in the mapfile if it exists */
     if ((mapserv->map->extent.minx == mapserv->map->extent.maxx) &&

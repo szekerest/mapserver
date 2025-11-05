@@ -663,8 +663,8 @@ msGraticuleLayerGetIntersectionPoints(mapObj *map, layerObj *layer) {
     searchrect = map->extent;
   else {
     searchrect.minx = searchrect.miny = 0;
-    searchrect.maxx = map->width - 1;
-    searchrect.maxy = map->height - 1;
+    searchrect.maxx = map->width;
+    searchrect.maxy = map->height;
   }
 
   if ((map->projection.numargs > 0) && (layer->projection.numargs > 0))

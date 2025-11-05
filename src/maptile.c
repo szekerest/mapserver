@@ -345,7 +345,7 @@ int msTileSetExtent(mapservObj *msObj) {
 #ifdef USE_TILE_API
 
   mapObj *map = msObj->map;
-  double dx, dy, buffer;
+  double buffer;
   tileParams params;
 
   /* Read the tile-mode map file parameters */
@@ -467,18 +467,6 @@ int msTileSetExtent(mapservObj *msObj) {
   if (map->debug)
     msDebug("msTileSetExtent(): buffered image size (%d x %d)\n", map->width,
             map->height);
-
-  /*
-  ** Adjust the extents inwards by 1/2 pixel so they are from
-  ** center-of-pixel to center-of-pixel, instead of edge-to-edge.
-  ** This is the way mapserver does it.
-  */
-  dx = (map->extent.maxx - map->extent.minx) / map->width;
-  map->extent.minx += dx * 0.5;
-  map->extent.maxx -= dx * 0.5;
-  dy = (map->extent.maxy - map->extent.miny) / map->height;
-  map->extent.miny += dy * 0.5;
-  map->extent.maxy -= dy * 0.5;
 
   /*
   ** Ensure the labelcache buffer is greater than the tile buffer.

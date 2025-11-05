@@ -1925,25 +1925,6 @@ this request. Check wms/ows_enable_request settings.",
     msFreeCharArray(tokens, n);
   }
 
-  /*
-  ** WMS extents are edge to edge while MapServer extents are center of
-  ** pixel to center of pixel.  Here we try to adjust the WMS extents
-  ** in by half a pixel.  We wait till here because we want to ensure we
-  ** are doing this in terms of the correct WIDTH and HEIGHT.
-  */
-  if (adjust_extent && map->width > 1 && map->height > 1 &&
-      !bbox_pixel_is_point) {
-    double dx, dy;
-
-    dx = (map->extent.maxx - map->extent.minx) / map->width;
-    map->extent.minx += dx * 0.5;
-    map->extent.maxx -= dx * 0.5;
-
-    dy = (map->extent.maxy - map->extent.miny) / map->height;
-    map->extent.miny += dy * 0.5;
-    map->extent.maxy -= dy * 0.5;
-  }
-
   if (request && strcasecmp(request, "DescribeLayer") != 0) {
     if (!srsfound) {
       if (nVersion >= OWS_1_3_0)

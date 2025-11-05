@@ -2674,9 +2674,9 @@ this request. Check wcs/ows_enable_request settings.",
       /* recompute bounding box so we get exactly the origin and
          resolution requested. */
       params->bbox.maxx =
-          params->bbox.minx + (params->width - 1) * params->resx;
+          params->bbox.minx + params->width * params->resx;
       params->bbox.miny =
-          params->bbox.maxy - (params->height - 1) * params->resy;
+          params->bbox.maxy - params->height * params->resy;
     }
   }
 

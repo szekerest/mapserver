@@ -138,8 +138,8 @@ int msInterpolationDataset(mapObj *map, imageObj *image,
     }
   } else {
     searchrect.minx = searchrect.miny = 0;
-    searchrect.maxx = map->width - 1;
-    searchrect.maxy = map->height - 1;
+    searchrect.maxx = map->width;
+    searchrect.maxy = map->height;
   }
 
   layer->project =

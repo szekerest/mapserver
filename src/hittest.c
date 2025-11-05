@@ -187,8 +187,8 @@ int msHitTestLayer(mapObj *map, layerObj *layer, layer_hittest *hittest) {
             &searchrect); /* project the searchrect to source coords */
     } else {
       searchrect.minx = searchrect.miny = 0;
-      searchrect.maxx = map->width - 1;
-      searchrect.maxy = map->height - 1;
+      searchrect.maxx = map->width;
+      searchrect.maxy = map->height;
     }
 #ifdef USE_GEOS
     msInitShape(&searchpoly);

@@ -689,9 +689,9 @@ int msUVRASTERLayerWhichShapes(layerObj *layer, rectObj rect, int isQuery) {
   map_tmp->extent.miny =
       rect.miny - (0.5 * map_cellsize) + (0.5 * map_tmp->cellsize);
   map_tmp->extent.maxx =
-      map_tmp->extent.minx + ((width - 1) * map_tmp->cellsize);
+      map_tmp->extent.minx + (width * map_tmp->cellsize);
   map_tmp->extent.maxy =
-      map_tmp->extent.miny + ((height - 1) * map_tmp->cellsize);
+      map_tmp->extent.miny + (height * map_tmp->cellsize);
 
   if (bHasLonWrap && dfLonWrap == 180.0) {
     if (map_tmp->extent.minx >= 180) {
@@ -863,9 +863,9 @@ int msUVRASTERLayerGetShape(layerObj *layer, shapeObj *shape,
 
   const int x = static_cast<int>(raster_off % uvlinfo->width);
   const int y = static_cast<int>(raster_off / uvlinfo->width);
-  point.x = Pix2Georef(x, 0, uvlinfo->width - 1, uvlinfo->extent.minx,
+  point.x = Pix2Georef(x, 0, uvlinfo->width, uvlinfo->extent.minx,
                        uvlinfo->extent.maxx, MS_FALSE);
-  point.y = Pix2Georef(y, 0, uvlinfo->height - 1, uvlinfo->extent.miny,
+  point.y = Pix2Georef(y, 0, uvlinfo->height, uvlinfo->extent.miny,
                        uvlinfo->extent.maxy, MS_TRUE);
   if (layer->debug == MS_DEBUGLEVEL_VVV)
     msDebug("msUVRASTERLayerWhichShapes(): shapeindex: %ld, x: %g, y: %g\n",

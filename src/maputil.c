@@ -1036,7 +1036,7 @@ int msAdjustImage(rectObj rect, int *width, int *height) {
 double msAdjustExtent(rectObj *rect, int width, int height) {
   double cellsize, ox, oy;
 
-  if (width == 1 || height == 1)
+  if (width == 0 || height == 0)
     return 0;
 
   cellsize = MS_MAX(MS_CELLSIZE(rect->minx, rect->maxx, width),
@@ -1045,9 +1045,9 @@ double msAdjustExtent(rectObj *rect, int width, int height) {
   if (cellsize <= 0) /* avoid division by zero errors */
     return (0);
 
-  ox = MS_MAX(((width - 1) - (rect->maxx - rect->minx) / cellsize) / 2,
+  ox = MS_MAX(((width) - (rect->maxx - rect->minx) / cellsize) / 2,
               0); /* these were width-1 and height-1 */
-  oy = MS_MAX(((height - 1) - (rect->maxy - rect->miny) / cellsize) / 2, 0);
+  oy = MS_MAX(((height) - (rect->maxy - rect->miny) / cellsize) / 2, 0);
 
   rect->minx = rect->minx - ox * cellsize;
   rect->miny = rect->miny - oy * cellsize;

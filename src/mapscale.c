@@ -104,7 +104,7 @@ int msCalculateScale(rectObj extent, int units, int width, int height,
   case (MS_INCHES):
   case (MS_FEET):
     center_y = (extent.miny + extent.maxy) / 2.0;
-    md = (width - 1) /
+    md = (width) /
          (resolution *
           msInchesPerUnit(
               units, center_y)); /* remember, we use a pixel-center to
@@ -593,7 +593,7 @@ double GetDeltaExtentsUsingScale(double scale, int units, double centerLat,
   case (MS_FEET):
     /* remember, we use a pixel-center to pixel-center extent, hence the width-1
      */
-    md = (width - 1) / (resolution * msInchesPerUnit(units, centerLat));
+    md = (width) / (resolution * msInchesPerUnit(units, centerLat));
     dfDelta = md * scale;
     break;
 

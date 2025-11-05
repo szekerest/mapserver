@@ -318,7 +318,7 @@ int msMapScaleExtent(mapObj *map, double zoomfactor, double minscaledenom,
 
   if (minscaledenom > 0 || maxscaledenom > 0) {
     /* ensure we are within the valid scale domain */
-    md = (map->width - 1) /
+    md = (map->width) /
          (map->resolution * msInchesPerUnit(map->units, center_y));
     if (minscaledenom > 0 && geo_width < minscaledenom * md)
       geo_width = minscaledenom * md;
@@ -422,14 +422,14 @@ int msMapComputeGeotransform(mapObj *map)
 
 {
   /* Do we have all required parameters? */
-  if (map->extent.minx == map->extent.maxx || map->width <= 1 ||
-      map->height <= 1)
+  if (map->extent.minx == map->extent.maxx || map->width <= 0 ||
+      map->height <= 0)
     return MS_FAILURE;
 
   const double geo_width = map->extent.maxx - map->extent.minx;
   const double geo_height = map->extent.maxy - map->extent.miny;
-  return msMapComputeGeotransformEx(map, geo_width / (map->width - 1),
-                                    geo_height / (map->height - 1));
+  return msMapComputeGeotransformEx(map, geo_width / map->width,
+                                    geo_height / map->height);
 }
 
 /************************************************************************/
