@@ -997,7 +997,12 @@ int msPreloadSVGSymbol(symbolObj *symbol) {
                  "msPreloadSVGSymbol()");
       return MS_FAILURE;
     }
-    status = svg_cairo_parse(cache->svgc, symbol->full_pixmap_path);
+    /* check if path contains direct svg image */
+    if ( EQUALN(symbol->full_pixmap_path,"<?xml",5))
+      status = svg_cairo_parse_buffer(cache->svgc, symbol->full_pixmap_path, 
+                                        strlen(symbol->full_pixmap_path));
+    else
+      status = svg_cairo_parse(cache->svgc, symbol->full_pixmap_path);
     if (status) {
       msSetError(MS_RENDERERERR, "problem parsing svg symbol",
                  "msPreloadSVGSymbol()");
