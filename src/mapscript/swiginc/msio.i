@@ -56,6 +56,7 @@ const char *msIO_getStdoutBufferString(void);
 /// MapScript language (e/g. string in Python, byte[] array in Java and C#, unhandled in Perl).
 gdBuffer msIO_getStdoutBufferBytes(void);
 void msIO_installStdoutToFile(const char* filename);
+void msIO_setHeaderEnabled(int bFlag);
 
 %newobject msIO_getAndStripStdoutBufferMimeHeaders;
 /// Strip off all MIME headers and return them in a hashTableObj
