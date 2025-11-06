@@ -55,12 +55,41 @@ const char *msIO_getStdoutBufferString(void);
 /// Fetch the current stdout buffer contents as a binary buffer. The exact form of this buffer will vary by 
 /// MapScript language (e/g. string in Python, byte[] array in Java and C#, unhandled in Perl).
 gdBuffer msIO_getStdoutBufferBytes(void);
+void msIO_installStdoutToFile(const char* filename);
 
 %newobject msIO_getAndStripStdoutBufferMimeHeaders;
 /// Strip off all MIME headers and return them in a hashTableObj
 hashTableObj* msIO_getAndStripStdoutBufferMimeHeaders(void);
 
 %{
+
+void msIO_installStdoutToFile(const char* filename) {
+    msIOContext *ctx = msIO_getHandler( (FILE *) "stdout" );
+
+    if( ctx == NULL || ctx->write_channel == MS_FALSE)
+    {
+        msSetError( MS_MISCERR, "Can't identify msIO buffer.",
+                    "msIO_installStdoutToFile" );
+        return;
+    }
+
+    if ( ctx->cbData != NULL && ctx->cbData != stdout )
+        fclose(ctx->cbData);
+
+    if (filename) {
+        ctx->cbData = fopen(filename, "a");
+        if (!ctx->cbData) {
+            ctx->cbData = stdout;
+            msSetError( MS_MISCERR, "Can't open file.",
+                        "msIO_installStdoutToFile" );
+            return;
+        }
+    }
+    else {
+        ctx->cbData = stdout;
+    }
+}
+
 
 const char *msIO_getStdoutBufferString() {
     msIOContext *ctx = msIO_getHandler( (FILE *) "stdout" );
