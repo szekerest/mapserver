@@ -470,7 +470,7 @@ int msEmbedScalebar(mapObj *map, imageObj *img) {
   /* intialize a few things */
   embeddedSymbol->name = msStrdup("scalebar");
 
-  if (MS_MAP_RENDERER(map)->supports_svg) {
+  if (!strcasecmp(image->format->driver,"cairo/svg")) {
     int size;
     char* svg_text;
     embeddedSymbol->type = MS_SYMBOL_SVG;
