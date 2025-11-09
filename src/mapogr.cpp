@@ -5195,7 +5195,8 @@ static void msOGREnablePaging(layerObj *layer, int value) {
     }
   }
 
-  assert(layer->layerinfo != NULL);
+  if (!layer->layerinfo)
+    return;
 
   layerinfo = (msOGRFileInfo *)layer->layerinfo;
   layerinfo->bPaging = value;
@@ -5214,7 +5215,8 @@ static int msOGRGetPaging(layerObj *layer) {
     }
   }
 
-  assert(layer->layerinfo != NULL);
+  if (!layer->layerinfo)
+    return MS_TRUE;
 
   layerinfo = (msOGRFileInfo *)layer->layerinfo;
   return layerinfo->bPaging;
