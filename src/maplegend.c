@@ -301,13 +301,13 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass, int width,
           msOutlineRenderingPrepareStyle(theclass->styles[i], map, lp, image);
           ret =
               msDrawLineSymbol(map, image_draw, &zigzag, theclass->styles[i],
-                               lp->scalefactor * image_draw->resolutionfactor);
+                               lp->scalefactor);
           msOutlineRenderingRestoreStyle(theclass->styles[i], map, lp, image);
           if (MS_UNLIKELY(ret == MS_FAILURE))
             goto legend_icon_cleanup;
         }
         ret = msDrawLineSymbol(map, image_draw, &zigzag, theclass->styles[i],
-                               lp->scalefactor * image_draw->resolutionfactor);
+                               lp->scalefactor);
         if (MS_UNLIKELY(ret == MS_FAILURE))
           goto legend_icon_cleanup;
       } else {
@@ -318,14 +318,14 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass, int width,
           msOutlineRenderingPrepareStyle(theclass->styles[i], map, lp, image);
           ret = msDrawTransformedShape(
               map, image_draw, &zigzag, theclass->styles[i],
-              lp->scalefactor * image_draw->resolutionfactor);
+              lp->scalefactor);
           msOutlineRenderingRestoreStyle(theclass->styles[i], map, lp, image);
           if (MS_UNLIKELY(ret == MS_FAILURE))
             goto legend_icon_cleanup;
         }
         ret = msDrawTransformedShape(
             map, image_draw, &zigzag, theclass->styles[i],
-            lp->scalefactor * image_draw->resolutionfactor);
+            lp->scalefactor);
         if (MS_UNLIKELY(ret == MS_FAILURE))
           goto legend_icon_cleanup;
       }
@@ -360,7 +360,7 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass, int width,
         } else {
           ret =
               msDrawShadeSymbol(map, image_draw, &box, theclass->styles[i],
-                                lp->scalefactor * image_draw->resolutionfactor);
+                                lp->scalefactor);
         }
         if (MS_UNLIKELY(ret == MS_FAILURE))
           goto legend_icon_cleanup;
