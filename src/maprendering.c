@@ -616,7 +616,13 @@ int msDrawLineSymbol(mapObj *map, imageObj *image, shapeObj *p, styleObj *style,
 
       symbol = map->symbolset.symbol[style->symbol];
       /* store a reference to the renderer to be used for freeing */
-      symbol->renderer = renderer;
+      if (symbol->renderer != renderer) {
+        symbol->renderer = renderer;
+        if (symbol->renderer_free_func) 
+          symbol->renderer_free_func(symbol);
+ 
+        symbol->renderer_free_func = renderer->freeSymbol;
+      }
 
       width = style->width * scalefactor;
       width = MS_MIN(width, style->maxwidth * image->resolutionfactor);
@@ -764,8 +770,13 @@ int msDrawShadeSymbol(mapObj *map, imageObj *image, shapeObj *p,
       rendererVTableObj *renderer = image->format->vtable;
       shapeObj *offsetPolygon = NULL;
       /* store a reference to the renderer to be used for freeing */
-      if (style->symbol)
+      if(style->symbol && symbol->renderer != renderer) {
         symbol->renderer = renderer;
+        if(symbol->renderer_free_func) 
+          symbol->renderer_free_func(symbol);
+
+        symbol->renderer_free_func = renderer->freeSymbol;
+      }
 
       if (style->offsetx != 0 || style->offsety != 0) {
         if (style->offsety == MS_STYLE_SINGLE_SIDED_OFFSET) {
@@ -911,7 +922,13 @@ int msDrawMarkerSymbol(mapObj *map, imageObj *image, pointObj *p,
       double p_x, p_y;
       symbolObj *symbol = map->symbolset.symbol[style->symbol];
       /* store a reference to the renderer to be used for freeing */
-      symbol->renderer = renderer;
+      if (symbol->renderer != renderer) {
+        symbol->renderer = renderer;
+        if (symbol->renderer_free_func) 
+          symbol->renderer_free_func(symbol);
+
+        symbol->renderer_free_func = renderer->freeSymbol;
+      }
       if (preloadSymbol(&map->symbolset, symbol, renderer) != MS_SUCCESS) {
         return MS_FAILURE;
       }
