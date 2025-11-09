@@ -429,10 +429,11 @@ int msDrawLegendIcon(mapObj *map, layerObj *lp, classObj *theclass, int width,
     initTextSymbol(&ts);
     msPopulateTextSymbolForLabelAndString(
         &ts, theclass->labels[0], msStrdup("Az"),
-        lp->scalefactor * image_draw->resolutionfactor,
+        lp->scalefactor,
         image_draw->resolutionfactor, duplicate_always);
     ts.label->size = height - 1;
     ts.rotation = 0;
+    ts.scalefactor = 1.0; /* keysize is already scaled */
     ret = msComputeTextPath(map, &ts);
     if (MS_UNLIKELY(ret == MS_FAILURE))
       goto legend_icon_cleanup;
