@@ -446,12 +446,13 @@ static __inline long int MS_NINT(double __x) {
 
 #define MS_RENDERER_PLUGIN(format) ((format)->renderer > MS_RENDER_WITH_PLUGIN)
 
-#define MS_CELLSIZE(min, max, d)                                               \
-  (((max) - (min)) / ((d)-1)) /* where min/max are from an MapServer pixel     \
+/*#define MS_CELLSIZE(min, max, d)                                               \
+  (((max) - (min)) / ((d)-1))*/ /* where min/max are from an MapServer pixel     \
                                  center-to-pixel center extent */
 #define MS_OWS_CELLSIZE(min, max, d)                                           \
   (((max) - (min)) / (d)) /* where min/max are from an OGC pixel outside       \
                              edge-to-pixel outside edge extent */
+#define MS_CELLSIZE MS_OWS_CELLSIZE /* set up OGC pixel model entirely */
 #define MS_MAP2IMAGE_X(x, minx, cx) (MS_NINT(((x) - (minx)) / (cx)))
 #define MS_MAP2IMAGE_Y(y, maxy, cy) (MS_NINT(((maxy) - (y)) / (cy)))
 #define MS_IMAGE2MAP_X(x, minx, cx) ((minx) + (cx) * (x))
