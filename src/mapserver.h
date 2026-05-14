@@ -562,6 +562,10 @@ enum MS_UNITS {
   MS_NAUTICALMILES,
   MS_INHERIT = -1
 };
+enum MS_SCALEBAR_MEASURE {
+  MS_SCALEBAR_MEASURE_CARTESIAN,
+  MS_SCALEBAR_MEASURE_GEODESIC
+};
 enum MS_SHAPE_TYPE {
   MS_SHAPE_POINT,
   MS_SHAPE_LINE,
@@ -1925,6 +1929,7 @@ typedef struct {
   colorObj outlinecolor; ///< Foreground outline color - see :ref:`OUTLINECOLOR
                          ///< <mapfile-scalebar-outlinecolor>`
   int units;             ///< See :ref:`UNITS <mapfile-scalebar-units>`
+  int measure;           ///< See :ref:`MEASURE <mapfile-scalebar-measure>`
   int status;            ///< ON, OFF or EMBED - see :ref:`STATUS
               ///< <mapfile-scalebar-status>` - :data:`MS_ON`, :data:`MS_OFF`,
               ///< or :data:`MS_EMBED`.

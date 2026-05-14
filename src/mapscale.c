@@ -156,6 +156,83 @@ double msInchesPerUnit(int units, double center_lat) {
 
 #define X_STEP_SIZE 5
 
+static double msScalebarMeasurePixelSpanCartesian(mapObj *map,
+                                                  const scalebarObj *scalebar,
+                                                  double pixel_width) {
+  return MS_CONVERT_UNIT(map->units, scalebar->units,
+                         map->cellsize * pixel_width);
+}
+
+static int msScalebarProjectPointToLatLon(mapObj *map, pointObj *point) {
+  if (map->projection.proj)
+    return msProjectPoint(&map->projection, &map->latlon, point);
+
+  if (map->units == MS_DD)
+    return MS_SUCCESS;
+
+  msSetError(MS_MISCERR,
+             "Geodesic scalebar measurement requires a map projection or "
+             "decimal degree map units.",
+             "msDrawScalebar()");
+  return MS_FAILURE;
+}
+
+static int msScalebarMeasurePixelSpanGeodesic(mapObj *map,
+                                              const scalebarObj *scalebar,
+                                              double pixel_width,
+                                              double *distance) {
+  pointObj p1, p2;
+  PJ_COORD c1, c2, geod;
+  const double center_y = (map->extent.miny + map->extent.maxy) / 2.0;
+  const double center_x = (map->extent.minx + map->extent.maxx) / 2.0;
+  const double half_width = map->cellsize * pixel_width / 2.0;
+
+  if (!map->latlon.proj) {
+    msSetError(MS_MISCERR,
+               "Geodesic scalebar measurement requires a geographic "
+               "projection definition.",
+               "msDrawScalebar()");
+    return MS_FAILURE;
+  }
+
+  p1.x = center_x - half_width;
+  p1.y = center_y;
+  p2.x = center_x + half_width;
+  p2.y = center_y;
+
+  if (msScalebarProjectPointToLatLon(map, &p1) != MS_SUCCESS ||
+      msScalebarProjectPointToLatLon(map, &p2) != MS_SUCCESS)
+    return MS_FAILURE;
+
+  c1.lp.lam = p1.x * MS_DEG_TO_RAD;
+  c1.lp.phi = p1.y * MS_DEG_TO_RAD;
+  c2.lp.lam = p2.x * MS_DEG_TO_RAD;
+  c2.lp.phi = p2.y * MS_DEG_TO_RAD;
+
+  geod = proj_geod(map->latlon.proj, c1, c2);
+  if (!isfinite(geod.geod.s))
+    return MS_FAILURE;
+
+  *distance = MS_CONVERT_UNIT(MS_METERS, scalebar->units, geod.geod.s);
+  return MS_SUCCESS;
+}
+
+static int msScalebarMeasurePixelSpan(mapObj *map, const scalebarObj *scalebar,
+                                      double pixel_width, double *distance) {
+  switch (scalebar->measure) {
+  case MS_SCALEBAR_MEASURE_CARTESIAN:
+    *distance = msScalebarMeasurePixelSpanCartesian(map, scalebar, pixel_width);
+    return MS_SUCCESS;
+  case MS_SCALEBAR_MEASURE_GEODESIC:
+    return msScalebarMeasurePixelSpanGeodesic(map, scalebar, pixel_width,
+                                              distance);
+  default:
+    msSetError(MS_MISCERR, "Unsupported scalebar measurement mode.",
+               "msDrawScalebar()");
+    return MS_FAILURE;
+  }
+}
+
 imageObj *msDrawScalebar(mapObj *map) {
   int status;
   char label[32];
@@ -213,14 +290,15 @@ imageObj *msDrawScalebar(mapObj *map) {
   }
   dsx = map->scalebar.width - 2 * HMARGIN;
   do {
-    msx = (map->cellsize * dsx) / (msInchesPerUnit(map->scalebar.units, 0) /
-                                   msInchesPerUnit(map->units, 0));
+    double units_per_pixel;
+    if (msScalebarMeasurePixelSpan(map, &map->scalebar, dsx, &msx) !=
+        MS_SUCCESS)
+      return NULL;
     i = roundInterval(msx / map->scalebar.intervals);
     snprintf(label, sizeof(label), "%g",
              map->scalebar.intervals * i); /* last label */
-    isx = MS_NINT((i / (msInchesPerUnit(map->units, 0) /
-                        msInchesPerUnit(map->scalebar.units, 0))) /
-                  map->cellsize);
+    units_per_pixel = msx / dsx;
+    isx = MS_NINT(i / units_per_pixel);
     sx = (map->scalebar.intervals * isx) +
          MS_NINT((1.5 + strlen(label) / 2.0 +
                   strlen(unitText[map->scalebar.units])) *
