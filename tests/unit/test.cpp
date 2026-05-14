@@ -1,6 +1,9 @@
 #include "../../src/mapserver.h"
 #include "../../src/maperror.h"
 
+extern "C" void freeScalebar(scalebarObj *scalebar);
+extern "C" int msCopyScalebar(scalebarObj *dst, const scalebarObj *src);
+
 /* ----------------------------------------------------------------------- */
 
 int gTestRetCode = 0;
@@ -145,8 +148,49 @@ static void testToString() {
 
 /* ----------------------------------------------------------------------- */
 
+static void testScalebarMeasure() {
+  {
+    scalebarObj scalebar;
+    initScalebar(&scalebar);
+    EXPECT_TRUE(scalebar.measure == MS_SCALEBAR_MEASURE_CARTESIAN);
+    freeScalebar(&scalebar);
+  }
+  {
+    char snippet[] = "SCALEBAR\n  MEASURE GEODESIC\nEND\n";
+    scalebarObj scalebar;
+    initScalebar(&scalebar);
+    EXPECT_TRUE(msUpdateScalebarFromString(&scalebar, snippet) == MS_SUCCESS);
+    EXPECT_TRUE(scalebar.measure == MS_SCALEBAR_MEASURE_GEODESIC);
+
+    char *serialized = msWriteScalebarToString(&scalebar);
+    EXPECT_TRUE(strstr(serialized, "MEASURE GEODESIC") != nullptr);
+    msFree(serialized);
+    freeScalebar(&scalebar);
+  }
+  {
+    char snippet[] = "SCALEBAR\n  MEASURE RHUMB\nEND\n";
+    scalebarObj scalebar;
+    initScalebar(&scalebar);
+    EXPECT_TRUE(msUpdateScalebarFromString(&scalebar, snippet) == MS_FAILURE);
+    freeScalebar(&scalebar);
+  }
+  {
+    scalebarObj source;
+    scalebarObj copy;
+    initScalebar(&source);
+    source.measure = MS_SCALEBAR_MEASURE_GEODESIC;
+    EXPECT_TRUE(msCopyScalebar(&copy, &source) == MS_SUCCESS);
+    EXPECT_TRUE(copy.measure == MS_SCALEBAR_MEASURE_GEODESIC);
+    freeScalebar(&copy);
+    freeScalebar(&source);
+  }
+}
+
+/* ----------------------------------------------------------------------- */
+
 int main() {
   testRedactCredentials();
   testToString();
+  testScalebarMeasure();
   return gTestRetCode;
 }
