@@ -818,7 +818,7 @@ int msCopyReferenceMap(referenceMapObj *dst, const referenceMapObj *src,
  * and msCopyLabel()                                                   *
  **********************************************************************/
 
-int msCopyScalebar(scalebarObj *dst, const scalebarObj *src) {
+MS_DLL_EXPORT int msCopyScalebar(scalebarObj *dst, const scalebarObj *src) {
 
   initScalebar(dst);
 

@@ -5782,7 +5782,7 @@ void initScalebar(scalebarObj *scalebar) {
   scalebar->offsety = 0;
 }
 
-void freeScalebar(scalebarObj *scalebar) { freeLabel(&(scalebar->label)); }
+MS_DLL_EXPORT void freeScalebar(scalebarObj *scalebar) { freeLabel(&(scalebar->label)); }
 
 int loadScalebar(scalebarObj *scalebar) {
   for (;;) {
