@@ -164,16 +164,24 @@ static double msScalebarMeasurePixelSpanCartesian(mapObj *map,
 }
 
 static int msScalebarProjectPointToLatLon(mapObj *map, pointObj *point) {
-  if (map->projection.proj)
-    return msProjectPoint(&map->projection, &map->latlon, point);
+  if (map->projection.proj) {
+    if (msProjectPoint(&map->projection, &map->latlon, point) == MS_SUCCESS)
+      return MS_SUCCESS;
+  }
 
-  if (map->units == MS_DD)
+  if (!map->projection.proj && map->units == MS_DD)
     return MS_SUCCESS;
 
-  msSetError(MS_MISCERR,
-             "Geodesic scalebar measurement requires a map projection or "
-             "decimal degree map units.",
-             "msDrawScalebar()");
+  if (map->projection.proj)
+    msSetError(MS_PROJERR,
+               "Failed to project scalebar measurement endpoint to "
+               "geographic coordinates.",
+               "msDrawScalebar()");
+  else
+    msSetError(MS_MISCERR,
+               "Geodesic scalebar measurement requires a map projection or "
+               "decimal degree map units.",
+               "msDrawScalebar()");
   return MS_FAILURE;
 }
 
@@ -210,8 +218,12 @@ static int msScalebarMeasurePixelSpanGeodesic(mapObj *map,
   c2.lp.phi = p2.y * MS_DEG_TO_RAD;
 
   geod = proj_geod(map->latlon.proj, c1, c2);
-  if (!isfinite(geod.geod.s))
+  if (!isfinite(geod.geod.s) || geod.geod.s <= 0) {
+    msSetError(MS_PROJERR,
+               "Failed to calculate a positive geodesic scalebar distance.",
+               "msDrawScalebar()");
     return MS_FAILURE;
+  }
 
   *distance = MS_CONVERT_UNIT(MS_METERS, scalebar->units, geod.geod.s);
   return MS_SUCCESS;
@@ -219,18 +231,33 @@ static int msScalebarMeasurePixelSpanGeodesic(mapObj *map,
 
 static int msScalebarMeasurePixelSpan(mapObj *map, const scalebarObj *scalebar,
                                       double pixel_width, double *distance) {
+  int status;
+
   switch (scalebar->measure) {
   case MS_SCALEBAR_MEASURE_CARTESIAN:
     *distance = msScalebarMeasurePixelSpanCartesian(map, scalebar, pixel_width);
-    return MS_SUCCESS;
+    status = MS_SUCCESS;
+    break;
   case MS_SCALEBAR_MEASURE_GEODESIC:
-    return msScalebarMeasurePixelSpanGeodesic(map, scalebar, pixel_width,
-                                              distance);
+    status =
+        msScalebarMeasurePixelSpanGeodesic(map, scalebar, pixel_width, distance);
+    break;
   default:
     msSetError(MS_MISCERR, "Unsupported scalebar measurement mode.",
                "msDrawScalebar()");
     return MS_FAILURE;
   }
+
+  if (status != MS_SUCCESS)
+    return MS_FAILURE;
+
+  if (!isfinite(*distance) || *distance <= 0) {
+    msSetError(MS_MISCERR,
+               "Scalebar measurement did not produce a positive distance.",
+               "msDrawScalebar()");
+    return MS_FAILURE;
+  }
+  return MS_SUCCESS;
 }
 
 imageObj *msDrawScalebar(mapObj *map) {
