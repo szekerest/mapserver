@@ -229,6 +229,23 @@ static mapObj *createWebMercatorMap(double center_y) {
   return map;
 }
 
+static mapObj *createGeographicMap() {
+  mapObj *map = msNewMapObj();
+  if (!map)
+    return nullptr;
+
+  map->width = 200;
+  map->height = 100;
+  map->units = MS_DD;
+  map->extent.minx = -5;
+  map->extent.maxx = 5;
+  map->extent.miny = -2.5;
+  map->extent.maxy = 2.5;
+  map->cellsize = msAdjustExtent(&map->extent, map->width, map->height);
+  map->scalebar.units = MS_KILOMETERS;
+  return map;
+}
+
 static void testScalebarMeasurePixelSpan() {
   {
     mapObj *map = createWebMercatorMap(0);
@@ -278,6 +295,25 @@ static void testScalebarMeasurePixelSpan() {
                                            &geodesic_distance) == MS_SUCCESS);
     EXPECT_TRUE(geodesic_distance < cartesian_distance * 0.55);
     EXPECT_TRUE(geodesic_distance > cartesian_distance * 0.45);
+
+    msFreeMap(map);
+  }
+  {
+    mapObj *map = createGeographicMap();
+    double geodesic_distance = 0;
+    EXPECT_TRUE(map != nullptr);
+    if (!map)
+      return;
+
+    EXPECT_TRUE(map->projection.proj == nullptr);
+
+    const double expected_equator_distance =
+        map->cellsize * 100 * 111.31949079327358;
+
+    map->scalebar.measure = MS_SCALEBAR_MEASURE_GEODESIC;
+    EXPECT_TRUE(msScalebarMeasurePixelSpan(map, &map->scalebar, 100,
+                                           &geodesic_distance) == MS_SUCCESS);
+    EXPECT_NEAR(geodesic_distance, expected_equator_distance, 0.001);
 
     msFreeMap(map);
   }
