@@ -195,6 +195,10 @@ static int msScalebarMeasurePixelSpanGeodesic(mapObj *map,
   const double center_x = (map->extent.minx + map->extent.maxx) / 2.0;
   const double half_width = map->cellsize * pixel_width / 2.0;
 
+  /*
+   * GEODESIC scalebars are local measurements: the horizontal pixel span is
+   * measured at the vertical centerline of the current map extent.
+   */
   if (!map->latlon.proj) {
     msSetError(MS_MISCERR,
                "Geodesic scalebar measurement requires a geographic "

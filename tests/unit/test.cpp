@@ -254,6 +254,10 @@ static void testScalebarMeasurePixelSpan() {
     msFreeMap(map);
   }
   {
+    /*
+     * The high-latitude case locks the GEODESIC sample-position policy to a
+     * local horizontal measurement at the map extent centerline.
+     */
     mapObj *map = createWebMercatorMap(8399737.889818357);
     double cartesian_distance = 0;
     double geodesic_distance = 0;
