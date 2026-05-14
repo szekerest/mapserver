@@ -1,6 +1,8 @@
 #include "../../src/mapserver.h"
 #include "../../src/maperror.h"
 
+#include <cmath>
+
 extern "C" void freeScalebar(scalebarObj *scalebar);
 extern "C" int msCopyScalebar(scalebarObj *dst, const scalebarObj *src);
 
@@ -32,6 +34,21 @@ static void EXPECT_TRUE_FUNC(bool cond, const char *condstr,
 }
 
 #define EXPECT_TRUE(cond) EXPECT_TRUE_FUNC(cond, #cond, __func__, __LINE__)
+
+static void EXPECT_NEAR_FUNC(double got, double expected, double tolerance,
+                             const char *gotstr, const char *expectedstr,
+                             const char *function, int line) {
+  if (std::fabs(got - expected) > tolerance) {
+    fprintf(stderr, "EXPECT_NEAR(\"%s\", \"%s\") failed at %s:%d: got %.15g, "
+                    "expected %.15g, tolerance %.15g\n",
+            gotstr, expectedstr, function, line, got, expected, tolerance);
+    gTestRetCode = 1;
+  }
+}
+
+#define EXPECT_NEAR(got, expected, tolerance)                                  \
+  EXPECT_NEAR_FUNC(got, expected, tolerance, #got, #expected, __func__,        \
+                   __LINE__)
 
 /* ----------------------------------------------------------------------- */
 
@@ -188,9 +205,86 @@ static void testScalebarMeasure() {
 
 /* ----------------------------------------------------------------------- */
 
+static mapObj *createWebMercatorMap(double center_y) {
+  mapObj *map = msNewMapObj();
+  if (!map)
+    return nullptr;
+
+  map->width = 200;
+  map->height = 100;
+  map->units = MS_METERS;
+  map->extent.minx = -1000000;
+  map->extent.maxx = 1000000;
+  map->extent.miny = center_y - 500000;
+  map->extent.maxy = center_y + 500000;
+  map->cellsize = msAdjustExtent(&map->extent, map->width, map->height);
+
+  if (msLoadProjectionString(&map->projection, "init=epsg:3857") !=
+      MS_SUCCESS) {
+    msFreeMap(map);
+    return nullptr;
+  }
+
+  map->scalebar.units = MS_KILOMETERS;
+  return map;
+}
+
+static void testScalebarMeasurePixelSpan() {
+  {
+    mapObj *map = createWebMercatorMap(0);
+    double cartesian_distance = 0;
+    double geodesic_distance = 0;
+    EXPECT_TRUE(map != nullptr);
+    if (!map)
+      return;
+
+    const double expected_cartesian_distance =
+        MS_CONVERT_UNIT(MS_METERS, MS_KILOMETERS, map->cellsize * 100);
+
+    map->scalebar.measure = MS_SCALEBAR_MEASURE_CARTESIAN;
+    EXPECT_TRUE(msScalebarMeasurePixelSpan(map, &map->scalebar, 100,
+                                           &cartesian_distance) == MS_SUCCESS);
+    EXPECT_NEAR(cartesian_distance, expected_cartesian_distance, 0.001);
+
+    map->scalebar.measure = MS_SCALEBAR_MEASURE_GEODESIC;
+    EXPECT_TRUE(msScalebarMeasurePixelSpan(map, &map->scalebar, 100,
+                                           &geodesic_distance) == MS_SUCCESS);
+    EXPECT_NEAR(geodesic_distance, expected_cartesian_distance, 0.5);
+
+    msFreeMap(map);
+  }
+  {
+    mapObj *map = createWebMercatorMap(8399737.889818357);
+    double cartesian_distance = 0;
+    double geodesic_distance = 0;
+    EXPECT_TRUE(map != nullptr);
+    if (!map)
+      return;
+
+    const double expected_cartesian_distance =
+        MS_CONVERT_UNIT(MS_METERS, MS_KILOMETERS, map->cellsize * 100);
+
+    map->scalebar.measure = MS_SCALEBAR_MEASURE_CARTESIAN;
+    EXPECT_TRUE(msScalebarMeasurePixelSpan(map, &map->scalebar, 100,
+                                           &cartesian_distance) == MS_SUCCESS);
+    EXPECT_NEAR(cartesian_distance, expected_cartesian_distance, 0.001);
+
+    map->scalebar.measure = MS_SCALEBAR_MEASURE_GEODESIC;
+    EXPECT_TRUE(msScalebarMeasurePixelSpan(map, &map->scalebar, 100,
+                                           &geodesic_distance) == MS_SUCCESS);
+    EXPECT_TRUE(geodesic_distance < cartesian_distance * 0.55);
+    EXPECT_TRUE(geodesic_distance > cartesian_distance * 0.45);
+
+    msFreeMap(map);
+  }
+}
+
+/* ----------------------------------------------------------------------- */
+
 int main() {
   testRedactCredentials();
   testToString();
   testScalebarMeasure();
+  testScalebarMeasurePixelSpan();
   return gTestRetCode;
 }

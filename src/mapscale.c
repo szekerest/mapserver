@@ -229,8 +229,8 @@ static int msScalebarMeasurePixelSpanGeodesic(mapObj *map,
   return MS_SUCCESS;
 }
 
-static int msScalebarMeasurePixelSpan(mapObj *map, const scalebarObj *scalebar,
-                                      double pixel_width, double *distance) {
+int msScalebarMeasurePixelSpan(mapObj *map, const scalebarObj *scalebar,
+                               double pixel_width, double *distance) {
   int status;
 
   switch (scalebar->measure) {
