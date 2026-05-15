@@ -39,8 +39,9 @@ static void EXPECT_NEAR_FUNC(double got, double expected, double tolerance,
                              const char *gotstr, const char *expectedstr,
                              const char *function, int line) {
   if (std::fabs(got - expected) > tolerance) {
-    fprintf(stderr, "EXPECT_NEAR(\"%s\", \"%s\") failed at %s:%d: got %.15g, "
-                    "expected %.15g, tolerance %.15g\n",
+    fprintf(stderr,
+            "EXPECT_NEAR(\"%s\", \"%s\") failed at %s:%d: got %.15g, "
+            "expected %.15g, tolerance %.15g\n",
             gotstr, expectedstr, function, line, got, expected, tolerance);
     gTestRetCode = 1;
   }

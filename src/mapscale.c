@@ -271,8 +271,8 @@ int msScalebarMeasurePixelSpan(mapObj *map, const scalebarObj *scalebar,
     status = MS_SUCCESS;
     break;
   case MS_SCALEBAR_MEASURE_GEODESIC:
-    status =
-        msScalebarMeasurePixelSpanGeodesic(map, scalebar, pixel_width, distance);
+    status = msScalebarMeasurePixelSpanGeodesic(map, scalebar, pixel_width,
+                                                distance);
     break;
   default:
     msSetError(MS_MISCERR, "Unsupported scalebar measurement mode.",
