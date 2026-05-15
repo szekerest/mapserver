@@ -258,6 +258,7 @@ static void testScalebarMeasurePixelSpan() {
     const double expected_cartesian_distance =
         MS_CONVERT_UNIT(MS_METERS, MS_KILOMETERS, map->cellsize * 100);
 
+    map->scalebar.position = MS_CC;
     map->scalebar.measure = MS_SCALEBAR_MEASURE_CARTESIAN;
     EXPECT_TRUE(msScalebarMeasurePixelSpan(map, &map->scalebar, 100,
                                            &cartesian_distance) == MS_SUCCESS);
@@ -271,10 +272,6 @@ static void testScalebarMeasurePixelSpan() {
     msFreeMap(map);
   }
   {
-    /*
-     * The high-latitude case locks the GEODESIC sample-position policy to a
-     * local horizontal measurement at the map extent centerline.
-     */
     mapObj *map = createWebMercatorMap(8399737.889818357);
     double cartesian_distance = 0;
     double geodesic_distance = 0;
@@ -285,6 +282,7 @@ static void testScalebarMeasurePixelSpan() {
     const double expected_cartesian_distance =
         MS_CONVERT_UNIT(MS_METERS, MS_KILOMETERS, map->cellsize * 100);
 
+    map->scalebar.position = MS_CC;
     map->scalebar.measure = MS_SCALEBAR_MEASURE_CARTESIAN;
     EXPECT_TRUE(msScalebarMeasurePixelSpan(map, &map->scalebar, 100,
                                            &cartesian_distance) == MS_SUCCESS);
@@ -295,6 +293,38 @@ static void testScalebarMeasurePixelSpan() {
                                            &geodesic_distance) == MS_SUCCESS);
     EXPECT_TRUE(geodesic_distance < cartesian_distance * 0.55);
     EXPECT_TRUE(geodesic_distance > cartesian_distance * 0.45);
+
+    msFreeMap(map);
+  }
+  {
+    mapObj *map = createWebMercatorMap(8399737.889818357);
+    double lower_distance = 0;
+    double upper_distance = 0;
+    double upper_offset_distance = 0;
+    EXPECT_TRUE(map != nullptr);
+    if (!map)
+      return;
+
+    map->scalebar.measure = MS_SCALEBAR_MEASURE_GEODESIC;
+
+    map->scalebar.position = MS_LC;
+    map->scalebar.offsety = 0;
+    EXPECT_TRUE(msScalebarMeasurePixelSpan(map, &map->scalebar, 100,
+                                           &lower_distance) == MS_SUCCESS);
+
+    map->scalebar.position = MS_UC;
+    map->scalebar.offsety = 0;
+    EXPECT_TRUE(msScalebarMeasurePixelSpan(map, &map->scalebar, 100,
+                                           &upper_distance) == MS_SUCCESS);
+
+    map->scalebar.offsety = 20;
+    EXPECT_TRUE(msScalebarMeasurePixelSpan(map, &map->scalebar, 100,
+                                           &upper_offset_distance) ==
+                MS_SUCCESS);
+
+    EXPECT_TRUE(lower_distance > upper_distance);
+    EXPECT_TRUE(upper_offset_distance > upper_distance);
+    EXPECT_TRUE(upper_offset_distance < lower_distance);
 
     msFreeMap(map);
   }
@@ -310,6 +340,7 @@ static void testScalebarMeasurePixelSpan() {
     const double expected_equator_distance =
         map->cellsize * 100 * 111.31949079327358;
 
+    map->scalebar.position = MS_CC;
     map->scalebar.measure = MS_SCALEBAR_MEASURE_GEODESIC;
     EXPECT_TRUE(msScalebarMeasurePixelSpan(map, &map->scalebar, 100,
                                            &geodesic_distance) == MS_SUCCESS);

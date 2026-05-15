@@ -163,6 +163,29 @@ static double msScalebarMeasurePixelSpanCartesian(mapObj *map,
                          map->cellsize * pixel_width);
 }
 
+static void msScalebarSamplePixel(const mapObj *map, double *px, double *py) {
+  double y;
+
+  switch (map->scalebar.position) {
+  case MS_LL:
+  case MS_LR:
+  case MS_LC:
+    y = map->height - map->scalebar.offsety - 1.0;
+    break;
+  case MS_UL:
+  case MS_UR:
+  case MS_UC:
+    y = map->scalebar.offsety;
+    break;
+  default:
+    y = map->height * 0.5;
+    break;
+  }
+
+  *px = map->width * 0.5;
+  *py = MS_MAX(0.0, MS_MIN(y, map->height - 1.0));
+}
+
 static int msScalebarProjectPointToLatLon(mapObj *map, pointObj *point) {
   if (map->projection.proj) {
     if (msProjectPoint(&map->projection, &map->latlon, point) == MS_SUCCESS)
@@ -191,13 +214,14 @@ static int msScalebarMeasurePixelSpanGeodesic(mapObj *map,
                                               double *distance) {
   pointObj p1, p2;
   PJ_COORD c1, c2, geod;
-  const double center_y = (map->extent.miny + map->extent.maxy) / 2.0;
-  const double center_x = (map->extent.minx + map->extent.maxx) / 2.0;
+  double sample_px, sample_py;
+  double sample_x, sample_y;
   const double half_width = map->cellsize * pixel_width / 2.0;
 
   /*
-   * GEODESIC scalebars are local measurements: the horizontal pixel span is
-   * measured at the vertical centerline of the current map extent.
+   * GEODESIC scalebars are local measurements. POSITION and OFFSET select a
+   * representative vertical sample row, while the horizontal sample remains
+   * centered in the map.
    */
   if (!map->latlon.proj) {
     msSetError(MS_MISCERR,
@@ -207,10 +231,14 @@ static int msScalebarMeasurePixelSpanGeodesic(mapObj *map,
     return MS_FAILURE;
   }
 
-  p1.x = center_x - half_width;
-  p1.y = center_y;
-  p2.x = center_x + half_width;
-  p2.y = center_y;
+  msScalebarSamplePixel(map, &sample_px, &sample_py);
+  sample_x = map->extent.minx + sample_px * map->cellsize;
+  sample_y = map->extent.maxy - sample_py * map->cellsize;
+
+  p1.x = sample_x - half_width;
+  p1.y = sample_y;
+  p2.x = sample_x + half_width;
+  p2.y = sample_y;
 
   if (msScalebarProjectPointToLatLon(map, &p1) != MS_SUCCESS ||
       msScalebarProjectPointToLatLon(map, &p2) != MS_SUCCESS)
